@@ -8,7 +8,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2/LinearMath/Quaternion.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include "plan_manage/tf2_compat.h"
 #include <tf2_ros/transform_broadcaster.h>
 
 namespace scan_planner

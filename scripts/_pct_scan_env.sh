@@ -9,8 +9,13 @@ fi
 PCT_SCAN_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PCT_SCAN_PROJECT_ROOT="$(cd "$PCT_SCAN_SCRIPT_DIR/.." && pwd -P)"
 
-if [[ ! -f /opt/ros/humble/setup.bash ]]; then
-  echo "[pct-scan] ROS 2 Humble was not found at /opt/ros/humble." >&2
+PCT_ROS_DISTRO="${PCT_ROS_DISTRO:-${ROS_DISTRO:-humble}}"
+if [[ "$PCT_ROS_DISTRO" != foxy && "$PCT_ROS_DISTRO" != humble ]]; then
+  echo "[pct-scan] Source the existing Foxy/Humble environment first; got $PCT_ROS_DISTRO." >&2
+  return 2
+fi
+if [[ ! -f "/opt/ros/$PCT_ROS_DISTRO/setup.bash" ]]; then
+  echo "[pct-scan] Existing ROS 2 $PCT_ROS_DISTRO environment was not found." >&2
   return 2
 fi
 if [[ ! -f "$PCT_SCAN_PROJECT_ROOT/install/setup.bash" ]]; then
@@ -20,7 +25,7 @@ fi
 
 # Generated ROS setup files legitimately inspect optional unset variables.
 set +u
-source /opt/ros/humble/setup.bash
+source "/opt/ros/$PCT_ROS_DISTRO/setup.bash"
 
 PCT_DEPS_ROOT="${PCT_DEPS_ROOT:-$PCT_SCAN_PROJECT_ROOT/.deps/install}"
 if [[ ! -f "$PCT_DEPS_ROOT/gtsam-4.2/lib/libgtsam.so.4" ]]; then

@@ -348,8 +348,24 @@ namespace scan_planner
   {
     if (!msg || msg->poses.empty())
     {
+      if (msg && navi_mode_ == NAVI_MODE::REFERENCE_PATH &&
+          msg->header.frame_id == self_inflation_frame_id_)
+      {
+        have_target_ = false;
+        have_new_target_ = false;
+        trigger_ = false;
+        active_waypoints_.clear();
+        changeFSMExecState(WAIT_TARGET, "PATH_CANCEL");
+        return;
+      }
       RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
                            "Received empty initial_path; ignoring");
+      return;
+    }
+
+    if (msg->header.frame_id != self_inflation_frame_id_)
+    {
+      RCLCPP_ERROR(node_->get_logger(), "Reference path frame does not match planning frame");
       return;
     }
 

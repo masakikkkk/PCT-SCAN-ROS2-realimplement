@@ -1,0 +1,2 @@
+# Preserve the patch's literal diff context and upstream line endings.
+go2_adapter_ws/pct_scan_foxy.patch -whitespace

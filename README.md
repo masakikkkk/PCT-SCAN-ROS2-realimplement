@@ -1,5 +1,30 @@
 # PCT-SCAN-ROS2
 
+## 本 Fork 的 Go2 EDU / Foxy 接入
+
+本 Fork 保留上游规划器，并加入 Foxy 兼容修改、闭环跟踪有效性检查和
+[`go2_adapter_ws/`](go2_adapter_ws/) 中的 Go2 接口、配置与部署文档。
+接口复用机器人已有的 SLAM 和宇树运控，默认只预览运动请求。
+完整 Foxy 编译和实机运行尚待验证；当前仍使用预先生成的 tomogram，尚未实现在线探索。
+
+克隆后，先将适配工作区复制到规划器旁边，以使用部署文档中的目录布局。
+以下复制命令只在相邻的 `go2_adapter_ws` 不存在时执行，避免覆盖已有工作区：
+
+```bash
+git clone https://github.com/masakikkkk/PCT-SCAN-ROS2-realimplement.git PCT-SCAN-ROS2
+cd PCT-SCAN-ROS2
+if [ ! -e ../go2_adapter_ws ]; then
+  cp -a go2_adapter_ws ../go2_adapter_ws
+fi
+```
+
+接下来按 [`go2_adapter_ws/DEPLOY_GO2.md`](go2_adapter_ws/DEPLOY_GO2.md) 操作。
+验证范围见 [`go2_adapter_ws/VALIDATION.md`](go2_adapter_ws/VALIDATION.md)。
+仓库内的 `go2_adapter_ws/` 是受 Git 管理的源码；相邻副本用于按现有文档构建。
+如在相邻副本中修改了接口代码，应将改动同步回仓库内再提交。
+
+以下为上游演示和算法说明；演示场景结果不代表本 Fork 已完成 Go2 实机验证。
+
 PCT-SCAN-ROS2 将 PCT 的跨层全局规划器与 SCAN 的局部轨迹规划器几何，用 ROS 2 Humble 运行。PCT 负责在 tomogram 层析图中选择楼层、楼梯和坡道，SCAN 沿全局路线持续生成局部 B-spline。RViz 同时显示点云、路线和 Go2 运动动画。
 
 本仓库仅用于验证PCT+SCAN导航算法，起点和终点由 RViz Interactive Marker 控制，Z 轴可以直接选择目标楼层。

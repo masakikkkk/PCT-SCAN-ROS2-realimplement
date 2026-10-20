@@ -1,0 +1,43 @@
+# Candidate topic names from the robot inventory. Confirm types/frames on Go2.
+# Both nodes must use the same planning_frame and base_frame.
+go2_state_adapter:
+  ros__parameters:
+    odom_topic: /utlidar/robot_odom
+    cloud_topic: /utlidar/cloud_deskewed
+    planning_frame: odom
+    base_frame: base_link
+    sensor_frame: utlidar_lidar
+    # Standard Odometry twist is in child_frame_id; some SLAMs publish world twist.
+    odom_twist_frame: child
+    cloud_is_world: false
+    # Look up base_frame -> sensor_frame in your EXISTING TF tree.
+    use_tf_extrinsic: true
+    # Only used with use_tf_extrinsic=false; replace with measured extrinsics.
+    extrinsics_confirmed: false
+    body_to_sensor_xyz: [0.0, 0.0, 0.0]
+    body_to_sensor_xyzw: [0.0, 0.0, 0.0, 1.0]
+    max_input_age_sec: 0.25
+    max_pose_cloud_skew_sec: 0.10
+
+go2_sport_bridge:
+  ros__parameters:
+    cmd_topic: /pct_go2/cmd_vel
+    sport_topic: /api/sport/request
+    planning_frame: odom
+    base_frame: base_link
+    enable_motion: false
+    publish_rate_hz: 20.0
+    max_vx: 0.2
+    max_vy: 0.1
+    max_yaw_rate: 0.3
+    cmd_timeout_sec: 0.25
+    odom_timeout_sec: 0.25
+    cloud_timeout_sec: 0.5
+    # Firmware-dependent. With true, an external SDK lease manager must send a
+    # valid, renewed lease ID on /pct_go2/lease_id before Move can be sent.
+    require_lease: false
+    lease_timeout_sec: 1.0
+    # navigation.launch.py forces both true; interface-only mapping tests use false.
+    require_route_valid: false
+    require_tracking_valid: false
+    tracking_timeout_sec: 0.25

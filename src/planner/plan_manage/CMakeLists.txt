@@ -60,6 +60,9 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME} OPTIONAL)
 
 if(BUILD_TESTING)
+  add_executable(test_tracking_checks test/test_tracking_checks.cpp)
+  target_include_directories(test_tracking_checks PRIVATE include)
+  add_test(NAME test_tracking_checks COMMAND test_tracking_checks)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(launch_testing_ament_cmake REQUIRED)
