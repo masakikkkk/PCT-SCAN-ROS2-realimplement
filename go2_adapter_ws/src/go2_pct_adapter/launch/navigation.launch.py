@@ -17,8 +17,12 @@ from launch_ros.actions import Node
 
 def setup(context):
     config = LaunchConfiguration("config").perform(context)
-    tomogram = os.path.abspath(LaunchConfiguration("tomogram_path").perform(context))
-    if not os.path.isfile(tomogram):
+    mode = LaunchConfiguration("map_mode").perform(context)
+    if mode not in ("offline", "online"):
+        raise RuntimeError("map_mode must be offline or online")
+    tomogram_arg = LaunchConfiguration("tomogram_path").perform(context)
+    tomogram = os.path.abspath(tomogram_arg) if tomogram_arg else ""
+    if mode == "offline" and not os.path.isfile(tomogram):
         raise RuntimeError("tomogram_path must be YOUR mapped environment's tomogram")
     with open(config) as handle:
         settings = yaml.safe_load(handle)
@@ -32,6 +36,8 @@ def setup(context):
     if not math.isfinite(height) or height < 0:
         raise RuntimeError("body_height must be finite and nonnegative")
     scan_share = get_package_share_directory("scan_planner")
+    pct_share = get_package_share_directory("pct_planner")
+    online = settings.get("go2_online_planner", {}).get("ros__parameters", {})
     return [
         Node(package="go2_pct_adapter", executable="state_adapter",
              name="go2_state_adapter", parameters=[config], output="screen"),
@@ -39,12 +45,16 @@ def setup(context):
              name="go2_sport_bridge", parameters=[config, {
                  "require_route_valid": True, "require_tracking_valid": True,
              }], output="screen"),
-        Node(package="go2_pct_adapter", executable="live_pct_bridge",
-             name="pct_scan_bridge", output="screen", parameters=[{
-                 "rsg_root": os.path.dirname(os.path.dirname(tomogram)),
+        Node(package="go2_pct_adapter", executable=(
+                 "online_pct_bridge" if mode == "online" else "live_pct_bridge"),
+             name="pct_scan_bridge", output="screen", parameters=[online if mode == "online" else {}, {
+                 "rsg_root": (pct_share if mode == "online" else
+                              os.path.dirname(os.path.dirname(tomogram))),
+                 "defer_map_loading": mode == "online",
                  "scene_name": "building", "tomogram_path": tomogram,
                  "frame_id": frame, "coord_mode": "identity",
                  "path_topic": "/pct_go2/global_path",
+                 "tomogram_topic": "/pct_go2/tomogram",
                  "goal_topic": "/pct_go2/goal",
                  "start_topic": "/pct_go2/unused_manual_start",
                  "clicked_point_topic": "/pct_go2/unused_clicked_point",
@@ -95,7 +105,8 @@ def generate_launch_description():
     default = os.path.join(get_package_share_directory("go2_pct_adapter"), "config", "go2.yaml")
     return LaunchDescription([
         DeclareLaunchArgument("config", default_value=default),
-        DeclareLaunchArgument("tomogram_path"),
+        DeclareLaunchArgument("map_mode", default_value="offline"),
+        DeclareLaunchArgument("tomogram_path", default_value=""),
         DeclareLaunchArgument("body_height", default_value="0.4"),
         OpaqueFunction(function=setup),
     ])

@@ -18,6 +18,7 @@
 
 # Python cache and test output
 __pycache__/
+*.egg-info/
 *.py[cod]
 .pytest_cache/
 .coverage

@@ -64,21 +64,20 @@ if __name__ == '__main__':
 
     cfg = Config()
 
-    match args.scene:
-        case 'Spiral':
-            tomo_file = 'spiral0.3_2'
-            start_pos = np.array([-16.0, -6.0], dtype=np.float32)
-            end_pos = np.array([-26.0, -5.0], dtype=np.float32)
-        case 'Building':
-            tomo_file = 'building2_9'
-            start_pos = np.array([5.0, 5.0], dtype=np.float32)
-            end_pos = np.array([-6.0, -1.0], dtype=np.float32)
-        case 'Plaza':
-            tomo_file = 'plaza3_10'
-            start_pos = np.array([0.0, 0.0], dtype=np.float32)
-            end_pos = np.array([23.0, 10.0], dtype=np.float32)
-        case _:
-            raise ValueError('Invalid scene name')
+    if args.scene == 'Spiral':
+        tomo_file = 'spiral0.3_2'
+        start_pos = np.array([-16.0, -6.0], dtype=np.float32)
+        end_pos = np.array([-26.0, -5.0], dtype=np.float32)
+    elif args.scene == 'Building':
+        tomo_file = 'building2_9'
+        start_pos = np.array([5.0, 5.0], dtype=np.float32)
+        end_pos = np.array([-6.0, -1.0], dtype=np.float32)
+    elif args.scene == 'Plaza':
+        tomo_file = 'plaza3_10'
+        start_pos = np.array([0.0, 0.0], dtype=np.float32)
+        end_pos = np.array([23.0, 10.0], dtype=np.float32)
+    else:
+        raise ValueError('Invalid scene name')
 
     rclpy.init(args=None)
 

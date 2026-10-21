@@ -41,3 +41,31 @@ go2_sport_bridge:
     require_route_valid: false
     require_tracking_valid: false
     tracking_timeout_sec: 0.25
+
+# Used by online_navigation.launch.py; no prebuilt PCD/pickle is required.
+go2_online_planner:
+  ros__parameters:
+    map_topic: /uslam/cloud_map
+    map_update_period_sec: 2.0
+    map_timeout_sec: 10.0
+    map_min_points: 500
+    map_max_points: 2000000
+    map_max_cells: 2000000
+    tomogram_backend: auto  # CUDA if available; otherwise NumPy/SciPy CPU.
+    resolution: 0.20
+    slice_height: 0.50
+    kernel_size: 5
+    interval_min: 0.50
+    interval_free: 0.65
+    slope_max: 0.40
+    step_max: 0.20
+    standable_ratio: 0.20
+    cost_barrier: 50.0
+    safe_margin: 0.20
+    inflation: 0.25
+    # Indoor conservative default. False permits unobserved overhead clearance;
+    # this needs a separate free-space/clearance policy for outdoor operation.
+    require_ceiling_observation: true
+    goal_snap_radius_m: 0.40
+    goal_height_tolerance_m: 0.25
+    goal_reached_radius_m: 0.20

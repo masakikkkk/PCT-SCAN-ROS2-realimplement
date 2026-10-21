@@ -1,5 +1,8 @@
 # Go2 上的部署顺序
 
+**在线地图版本：** 直接复用 `/uslam/cloud_map` 的最新步骤见
+[ONLINE_GO2.md](ONLINE_GO2.md)。下面保留离线地图与接口单独检查流程。
+
 使用你们已经正常工作的 Foxy、SLAM 和宇树 DDS 环境，不安装 ROS。
 
 ## 1. 复制并构建接口包

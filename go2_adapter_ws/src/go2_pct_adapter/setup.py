@@ -23,6 +23,7 @@ setup(
         "state_adapter = go2_pct_adapter.state_adapter:main",
         "sport_bridge = go2_pct_adapter.sport_bridge:main",
         "live_pct_bridge = go2_pct_adapter.live_pct_bridge:main",
+        "online_pct_bridge = go2_pct_adapter.online_pct_bridge:main",
         "preflight = go2_pct_adapter.preflight:main",
     ]},
 )

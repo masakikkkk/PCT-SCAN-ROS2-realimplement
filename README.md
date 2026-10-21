@@ -5,7 +5,10 @@
 本 Fork 保留上游规划器，并加入 Foxy 兼容修改、闭环跟踪有效性检查和
 [`go2_adapter_ws/`](go2_adapter_ws/) 中的 Go2 接口、配置与部署文档。
 接口复用机器人已有的 SLAM 和宇树运控，默认只预览运动请求。
-完整 Foxy 编译和实机运行尚待验证；当前仍使用预先生成的 tomogram，尚未实现在线探索。
+支持从 `/uslam/cloud_map` 在线生成 tomogram、重新规划已观测区域内的目标，
+不再必须预先生成地图文件；完整 Foxy 编译、CUDA 和实机运行尚待验证。
+未知区域的自主探索尚未实现。在线入口见
+[`go2_adapter_ws/ONLINE_GO2.md`](go2_adapter_ws/ONLINE_GO2.md)。
 
 克隆后，先将适配工作区复制到规划器旁边，以使用部署文档中的目录布局。
 以下复制命令只在相邻的 `go2_adapter_ws` 不存在时执行，避免覆盖已有工作区：

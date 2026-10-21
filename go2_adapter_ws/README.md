@@ -1,5 +1,9 @@
 # Go2 EDU 的 PCT / SCAN 接口
 
+在线累计地图入口见 [ONLINE_GO2.md](ONLINE_GO2.md)：默认使用 `/uslam/cloud_map`，
+启动 `online_navigation.launch.py`，不需要预先生成 PCD 或 tomogram 文件。
+以下原有 `navigation.launch.py` 示例默认是离线地图模式。
+
 代码在现有 Foxy 环境中使用；本工作区不安装 ROS、SDK、SLAM，也不启动底层控制器。
 
 下载的算法源码位于相邻的 `../PCT-SCAN-ROS2`，固定下载提交为
@@ -17,10 +21,11 @@
 - `navigation.launch.py`：把上述接口、PCT、SCAN 和仓库现有闭环跟踪器连接起来。
   不启动模拟器，不重启你们的 SLAM，不写入宇树 `/uslam/navigation/global_path`。
 
-当前主机只有 Noetic，未安装或修改 ROS 2。已通过 Python 3.8 的 setuptools 严格检查、
-实际 build 和 /tmp 前缀安装，确认四个入口及所有配置/launch 文件被安装；42 项 Python
-测试（含模拟发布器回调测试）通过，原生跟踪校验代码的 15 条 C++ 断言也编译运行
-通过。尚未运行 rclpy 节点、Foxy colcon 构建、完整算法或实机运动验证。
+当前主机只有 Noetic，未安装或修改 ROS 2。在线版本通过 Python 3.8 构建和 /tmp
+前缀安装检查，五个入口及三个 launch 文件均已安装；81 项 Python 测试通过
+（77 项接口/在线地图测试和 4 项桥接辅助测试）。原生 A* 的失败后重规划回归也已
+独立编译运行。尚未运行 rclpy 节点、Foxy colcon 构建、CUDA 或实机运动验证。
+详情及可复现命令见 [VALIDATION.md](VALIDATION.md)。
 
 按步骤上机见 `DEPLOY_GO2.md`。`build_on_go2.sh` 在既有 Foxy 环境构建本包并检查真实
 消息序列化及节点导入，不安装依赖、不启动控制；`preflight` 在 Go2 上只读检查传感器、

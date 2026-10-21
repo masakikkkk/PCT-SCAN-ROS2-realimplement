@@ -81,10 +81,11 @@ int Astar::GetHash(const Eigen::Vector3i& idx) const {
 bool Astar::Search(const Eigen::Vector3i& start, const Eigen::Vector3i& goal) {
   auto t0 = std::chrono::high_resolution_clock::now();
 
-  if (!search_result_.empty()) {
-    Reset();
-    search_result_.clear();
-  }
+  // An unsuccessful search also leaves finite g scores and parents behind.
+  // Online replanning must reset these before every request, not only after
+  // requests that produced a nonempty route.
+  Reset();
+  search_result_.clear();
 
   auto start_node = &grid_map_[start[0]][start[2]][start[1]];
   auto goal_node = &grid_map_[goal[0]][goal[2]][goal[1]];

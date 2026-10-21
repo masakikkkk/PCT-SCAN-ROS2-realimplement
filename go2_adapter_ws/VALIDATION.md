@@ -1,51 +1,75 @@
 # Verification status
 
-Date: 2026-10-19 (Asia/Shanghai)
+Date: 2026-10-21 (Asia/Shanghai).
+Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
+No ROS 2, Unitree SDK or system dependencies were installed.
 
-Host: Ubuntu 20.04 x86_64, /usr/bin/python3 3.8.10, ROS Noetic only.
-No ROS 2, SDK or system dependencies were installed.
+## Actually run for the online-map change
 
-## Interface package: actually run and passed
+- 81 Python tests passed: 77 adapter/online tests plus 4 existing bridge helper
+  tests. Includes real CPU tomography on synthetic room geometry, unknown
+  holes/body-radius buffers, missing-ceiling policy, CUDA-unavailable CPU fallback,
+  map limits, padded/big-endian PointCloud2 decoding, rigid transforms, in-memory
+  loading and both existing Building/Plaza pickle formats.
+- Callback tests use fake ROS transport. They cover stale/superseded worker
+  results, invalid maps, cancellation during a build, pre-map and unobserved
+  goals, no route, goal completion and replanning without automatically enabling
+  motion. Launch tests use fake launch objects, not ROS launch.
+- One pre-existing NumPy warning from the visualization helper's NaN comparison
+  was emitted; all tests passed.
+- Compiled the real native PCT A* and its standalone online-replan regression
+  using C++17, Eigen, -Wall -Wextra and UndefinedBehaviorSanitizer. All five
+  assertions passed, including a reachable request after a failed search.
+- Python 3.8 byte-compilation of the adapter, PCT Python package, tomography
+  package and offline converter passed. The old demo's Python 3.10 match
+  statement was converted to if/elif for Foxy/Python 3.8 compatibility.
+- Adapter setup.py strict check, build and actual installation under
+  /tmp/go2_online_install_20261021 passed. All five executable entries, three
+  launch files, ament marker, XML, YAML and LICENSE were checked.
+- Tomography build and installation under /tmp/pct_tomography_install_20261021
+  included the shared CPU backend.
+- Offline converter --help, XML/YAML parsing, Bash syntax and git diff checks
+  passed. CPU equations were extracted from the existing offline converter
+  into tomography.cpu_backend, shared by both entry points.
 
-- `setup.py check --strict` (fixed missing URL metadata).
-- `setup.py build --build-base /tmp/go2_pct_adapter_build_20261019`.
-- `setup.py install --prefix /tmp/go2_pct_adapter_install_20261019
-  --single-version-externally-managed --record ...`.
-- Installation output includes state_adapter, sport_bridge, live_pct_bridge,
-  preflight, ament package marker, package.xml, LICENSE, YAML and both launch files.
-- 42 Python tests: 33 ROS-independent tests plus 9 fake-transport callback tests.
-  Covers command conversion, readiness, preview isolation, invalid routes,
-  cancellation, missing lease, watchdogs, timestamps and quaternion math.
-- Native tracking_checks test compiled with g++ C++17, -Wall -Wextra -Werror
-  and UndefinedBehaviorSanitizer; 15 assertions passed. This is a ROS-independent
-  helper test, not a compilation of the complete ROS controller node.
-- Python 3.8 syntax / byte-compilation; package XML, YAML and Bash syntax checks.
+Reproduce from the repository root in the same non-ROS test environment:
 
-These are real Python build/install checks, not a successful Foxy colcon build.
-Foxy's rclpy, generated messages and launch are absent on this host, so their
-runtime imports are checked by build_on_go2.sh on the robot.
+```bash
+PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+PYTHONPATH=go2_adapter_ws/src/go2_pct_adapter:src/pct/tomography:src/pct/pct_planner:src/integration/pct_scan_bridge \
+  /usr/bin/python3 -m pytest -q \
+  go2_adapter_ws/src/go2_pct_adapter/test src/integration/pct_scan_bridge/test
 
-## Upstream source: reviewed / patched, not compiled here
+g++ -std=c++17 -O2 -Wall -Wextra -fsanitize=undefined \
+  -I/usr/include/eigen3 -Isrc/pct/pct_planner/lib/src \
+  src/pct/pct_planner/lib/test/test_online_replan.cc \
+  src/pct/pct_planner/lib/src/a_star/a_star_search.cc \
+  -o /tmp/pct_online_replan_test
+/tmp/pct_online_replan_test
+```
 
-Base PCT-SCAN-ROS2 commit: `1cf45a1c12ca785ce533293302be09d51daf0ccb`.
+## Previous interface checks
 
-Local changes:
+On 2026-10-19 the original 42 adapter tests, Python build/install and native
+tracking-check helper (15 standalone C++ assertions) passed. That helper did not
+compile the complete ROS controller. These interface tests remain in the suite.
 
-- build/runtime scripts select the existing Foxy/Humble environment.
-- optional PCT_BUILD_TESTING flag for deployment builds.
-- TF2 .h/.hpp include compatibility for SCAN controllers and kinematic simulator.
-- Controller validation of cubic spline knots / finite points, odometry timeout,
-  bounded trajectory lifetime, reference-path cancellation and preview time freeze.
-- Navigation requires a valid PCT route and a live tracker heartbeat. New goals
-  first disable motion; failed plans and cancellation cannot approve the old route.
+Base upstream commit: 1cf45a1c12ca785ce533293302be09d51daf0ccb.
+pct_scan_foxy.patch is the historical 2026-10-19 compatibility patch, not a
+standalone patch for this online-map revision. Use the full Git repository for
+the online version; do not reapply the historical patch to these sources.
 
-Patch is included as `pct_scan_foxy.patch`. The helper has compiled standalone,
-and diff/shell checks pass; the full C++ dependency graph has NOT been built in Foxy.
+## Not verified here
 
-## Still requires Go2 evidence
+- Full Foxy colcon/native dependency build; real rclpy/launch imports, TF lookup,
+  DDS/QoS delivery and Unitree message serialization.
+- CUDA/CuPy execution or CPU timing/memory usage on the Go2 expansion computer.
+- Actual /uslam/cloud_map type, accumulated contents, frame and update stamps;
+  actual odom origin/twist convention, TF alignment and SLAM loop-closure behavior.
+- PCT terrain traversability versus SCAN collision-model consistency, including
+  stairs and overhangs; firmware-specific leases and physical motion.
+- Frontier exploration or navigation through unobserved regions. Such goals
+  are preserved while waiting for later maps; the node does not explore.
 
-- `bash build_on_go2.sh`: real colcon, node imports, Unitree message serialization.
-- `ros2 run go2_pct_adapter preflight`: graph, samples, timestamp freshness, TF.
-- Actual odom origin / twist convention and map alignment.
-- Firmware-specific lease acquisition/renewal when required.
-- Full PCT/SCAN build, own-scene tomogram, goal planning, tracking and physical motion.
+Deployment entry: [ONLINE_GO2.md](ONLINE_GO2.md). Existing preview and motion
+watchdogs are retained. These checks are not a claim of Go2 deployment readiness.

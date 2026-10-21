@@ -73,16 +73,33 @@ class TomogramPlanner(object):
         self.tomogram_path = str(path)
         with path.open('rb') as handle:
             data_dict = pickle.load(handle)
+        self.loadTomogramData(data_dict)
 
-            tomogram = np.asarray(data_dict['data'], dtype=np.float32)
+    def loadTomogramData(self, data_dict):
+        """Initialize from a snapshot without a pickle round trip.
 
-            self.resolution = float(data_dict['resolution'])
-            self.center = np.asarray(data_dict['center'], dtype=np.double)
-            self.n_slice = tomogram.shape[1]
-            self.slice_h0 = float(data_dict['slice_h0'])
-            self.slice_dh = float(data_dict['slice_dh'])
-            self.map_dim = [tomogram.shape[2], tomogram.shape[3]]
-            self.offset = np.array([int(self.map_dim[0] / 2), int(self.map_dim[1] / 2)], dtype=np.int32)
+        Online callers build a NEW wrapper before swapping it into use.
+        """
+        tomogram = np.array(data_dict['data'], dtype=np.float32, copy=True)
+        if (tomogram.ndim != 4 or tomogram.shape[0] != 5 or
+                min(tomogram.shape[1:]) < 1):
+            raise ValueError("Tomogram must have shape [5, layers, x, y]")
+        resolution = float(data_dict['resolution'])
+        center = np.asarray(data_dict['center'], dtype=np.double)
+        slice_h0 = float(data_dict['slice_h0'])
+        slice_dh = float(data_dict['slice_dh'])
+        if (not np.all(np.isfinite([resolution, slice_h0, slice_dh])) or
+                resolution <= 0 or slice_dh <= 0 or center.shape != (2,) or
+                not np.all(np.isfinite(center))):
+            raise ValueError("Invalid tomogram geometry")
+        if (not np.all(np.isfinite(tomogram[:3])) or
+                np.any(tomogram[0] < 0) or np.any(np.isinf(tomogram[3:]))):
+            raise ValueError("Costs/gradients must be finite; heights may be NaN")
+        self.resolution, self.center = resolution, center.copy()
+        self.slice_h0, self.slice_dh = slice_h0, slice_dh
+        self.n_slice = tomogram.shape[1]
+        self.map_dim = list(tomogram.shape[2:])
+        self.offset = np.array([size // 2 for size in self.map_dim], dtype=np.int32)
 
         trav = tomogram[0]
         trav_gx = tomogram[1]

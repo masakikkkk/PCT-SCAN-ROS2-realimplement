@@ -45,6 +45,7 @@ class PCTPlanner(Node):
         self.declare_parameter("scene_name", "Plaza")
         self.declare_parameter("tomo_file", "")
         self.declare_parameter("tomogram_path", "")
+        self.declare_parameter("defer_map_loading", False)
         self.declare_parameter("frame_id", "world")
         self.declare_parameter("coord_mode", "identity")
         self.declare_parameter("optimize_path", False)
@@ -148,12 +149,17 @@ class PCTPlanner(Node):
             else None
         )
         self.planner = TomogramPlanner(self.cfg, self.rsg_root)
-        tomogram_description = self.tomogram_path or self.tomo_file
-        self.get_logger().info(f"Loading tomogram: {tomogram_description}")
-        self.planner.loadTomogram(self.tomo_file, self.tomogram_path)
-        self.endpoint_mask = self.build_endpoint_mask() if self.restrict_endpoints else None
-        if self.tomogram_pub is not None:
-            self.publish_tomogram()
+        deferred = self.get_parameter("defer_map_loading").value
+        self.endpoint_mask = None
+        if not deferred:
+            tomogram_description = self.tomogram_path or self.tomo_file
+            self.get_logger().info(f"Loading tomogram: {tomogram_description}")
+            self.planner.loadTomogram(self.tomo_file, self.tomogram_path)
+            self.endpoint_mask = self.build_endpoint_mask() if self.restrict_endpoints else None
+            if self.tomogram_pub is not None:
+                self.publish_tomogram()
+        elif self.enable_interactive_markers or self.plan_on_startup:
+            raise ValueError("Deferred maps require markers and startup planning disabled")
 
         self.start_pose = None
         self.goal_pose = None
