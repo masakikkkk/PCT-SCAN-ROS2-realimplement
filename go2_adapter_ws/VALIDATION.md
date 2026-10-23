@@ -4,6 +4,19 @@ Date: 2026-10-21 (Asia/Shanghai).
 Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
 No ROS 2, Unitree SDK or system dependencies were installed.
 
+## Deployment documentation correction, 2026-10-23
+
+- Confirmed that the Git repository is the full `PCT-SCAN-ROS2/` directory.
+  Its root `src/` contains the algorithms; its nested `go2_adapter_ws/src/`
+  contains the adapter. The sibling standalone adapter is a historical copy.
+- Standardized deployment docs on the nested workspace, removed the instruction
+  to copy it outside the repository, and separated online/offline map startup.
+- Checked that all 11 documented source/script/config entry paths exist and
+  that relative Markdown links resolve. All 45 Bash blocks across the four
+  entry documents passed `bash -n`; the commands were not executed.
+- No algorithm or adapter source changes, ROS installation, Foxy compilation
+  or robot execution were part of this documentation correction.
+
 ## Actually run for the online-map change
 
 - 81 Python tests passed: 77 adapter/online tests plus 4 existing bridge helper

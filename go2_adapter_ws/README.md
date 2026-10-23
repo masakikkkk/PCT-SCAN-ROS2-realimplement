@@ -1,13 +1,15 @@
 # Go2 EDU 的 PCT / SCAN 接口
 
-在线累计地图入口见 [ONLINE_GO2.md](ONLINE_GO2.md)：默认使用 `/uslam/cloud_map`，
+部署步骤和实际目录见 [DEPLOY_GO2.md](DEPLOY_GO2.md)；在线累计地图原理见
+[ONLINE_GO2.md](ONLINE_GO2.md)：默认使用 `/uslam/cloud_map`，
 启动 `online_navigation.launch.py`，不需要预先生成 PCD 或 tomogram 文件。
 以下原有 `navigation.launch.py` 示例默认是离线地图模式。
 
 代码在现有 Foxy 环境中使用；本工作区不安装 ROS、SDK、SLAM，也不启动底层控制器。
 
-下载的算法源码位于相邻的 `../PCT-SCAN-ROS2`，固定下载提交为
-`1cf45a1c12ca785ce533293302be09d51daf0ccb`。上游要求 Humble；本地额外修正了构建/
+本工作区位于完整仓库内部，算法源码在 `../src/`，构建脚本在 `../scripts/`。
+仓库以原上游提交 `1cf45a1c12ca785ce533293302be09d51daf0ccb` 为基础加入实机接口和
+在线地图功能；该哈希不是当前版本。上游要求 Humble；本地额外修正了构建/
 运行脚本对 Humble 的硬编码，以及 SCAN 的 TF2 .h/.hpp 头文件兼容入口。这些是
 源码层面的已知 Foxy 问题修正，不代表整个上游已经完成 Foxy 编译验证。
 
@@ -90,7 +92,7 @@ SLAM 明确发布世界坐标速度，则设置 `world`。SCAN 源码直接将�
 配置，也不要为了本接口重新安装 ROS。然后在本工作区执行：
 
 ```bash
-cd '/home/yeyu/go2 planner/go2_adapter_ws'
+cd '/home/yeyu/go2 planner/PCT-SCAN-ROS2/go2_adapter_ws'
 bash build_on_go2.sh
 source install/setup.bash
 ros2 run go2_pct_adapter preflight
@@ -162,11 +164,13 @@ SportClient 构造参数默认 `enableLease=false`，但应以你们机器的 SD
 
 ## 接入完整 PCT / SCAN
 
-已有上游对应发行版的可运行构建后，先加载它的工作区，再加载本接口工作区：
+在线导航按 [DEPLOY_GO2.md](DEPLOY_GO2.md) 操作。下面只演示已有离线 tomogram 的
+入口。在完整仓库根目录，先加载算法工作区，再加载仓库内的接口工作区：
 
 ```bash
-source /path/to/PCT-SCAN-ROS2/scripts/_pct_scan_env.sh
-source /path/to/go2_adapter_ws/install/setup.bash
+export GO2_NAV_ROOT="$PWD"
+source "$GO2_NAV_ROOT/scripts/_pct_scan_env.sh"
+source "$GO2_NAV_ROOT/go2_adapter_ws/install/setup.bash"
 ros2 launch go2_pct_adapter navigation.launch.py \
   tomogram_path:=/absolute/path/your_environment.pickle body_height:=0.4
 ```
@@ -183,8 +187,8 @@ PCT 起点使用机体 z 减去这个高度，目标 z 表示目标地表高度�
 目标为 `/pct_go2/goal`，`PoseStamped.header.frame_id` 必须与规划地图一致；
 通过它触发规划时会使用最新实机位置作为起点。本入口禁用了 RViz 演示自动起点和
 交互标记。每个新目标先撤销运动使能并清空旧路线；规划失败不会批准旧路线继续执行。
-成功后仍需查看预览并重新使能。现有全局点云地图仍需要离线构建 tomogram；不能把任意点云话题直接当
-tomogram 使用。本次没有机器人地图，因此没有生成你们场地的 tomogram。
+成功后仍需查看预览并重新使能。本节的离线入口需要提前生成 tomogram 文件；
+`online_navigation.launch.py` 则在运行时将累计点云转换为 tomogram，无需提前生成文件。
 
 本地跟踪器补充了里程计超时、三次样条结构校验及轨迹有效期检查。有效期按源时间戳
 和轨迹时长计算，使用单调时钟监测接收间隔。navigation.launch.py 强制同时检查路线
@@ -195,10 +199,11 @@ tomogram 使用。本次没有机器人地图，因此没有生成你们场地�
 
 ## 只读采集实际接口
 
-在 Go2 的现有 Foxy 终端执行：
+在 Go2 的现有 Foxy 终端，先按 [DEPLOY_GO2.md](DEPLOY_GO2.md) 设置
+`GO2_NAV_ROOT` 为完整仓库根目录，再执行：
 
 ```bash
-bash /path/to/go2_adapter_ws/inspect_go2.sh > go2_interfaces.txt 2>&1
+bash "$GO2_NAV_ROOT/go2_adapter_ws/inspect_go2.sh" > go2_interfaces.txt 2>&1
 ```
 
 脚本只读取图和消息定义，不发送控制命令。还需记录所选 odom 的 header.frame_id、
@@ -206,11 +211,13 @@ child_frame_id，以及点云 header.frame_id / 时间戳。仅凭当前话题�
 
 ## 本地检查（不需要 ROS）
 
-从上一级项目目录运行：
+从完整仓库根目录运行：
 
 ```bash
-PYTHONPATH=go2_adapter_ws/src/go2_pct_adapter PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
-  /usr/bin/python3 -m pytest -q go2_adapter_ws/src/go2_pct_adapter/test
+PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+PYTHONPATH=go2_adapter_ws/src/go2_pct_adapter:src/pct/tomography:src/pct/pct_planner:src/integration/pct_scan_bridge \
+  /usr/bin/python3 -m pytest -q \
+  go2_adapter_ws/src/go2_pct_adapter/test src/integration/pct_scan_bridge/test
 ```
 
 live_pct_bridge 继承 GPL 的 PCT 桥，本接口包整体按 GPL-2.0-or-later 标注，原项目

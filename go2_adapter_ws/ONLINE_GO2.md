@@ -10,21 +10,13 @@
 更新地图和内部重规划会清空旧路线、暂停跟踪，可能出现停走；同一目标已获得的运动
 使能不会被反复撤销。新用户目标、取消和到达目标仍会撤销使能。
 
-## 1. 构建
+## 1. 目录、构建和环境加载
 
-在 Go2 的扩展坞上，先按原来的方式 source Foxy、宇树消息与 DDS 环境。
-已有的 GTSAM/OSQP 等 PCT 依赖仍需按上游说明准备。下面不安装 ROS 或依赖。
-示例假设仓库克隆到 `~/go2_nav/PCT-SCAN-ROS2`，直接使用仓库内的适配工作区：
+统一按 [DEPLOY_GO2.md](DEPLOY_GO2.md) 第 1～3 步操作：使用完整仓库内的
+`go2_adapter_ws`，先构建算法（包含 tomography），再构建接口，并加载两份
+`install/setup.bash`。只复制接口包不足以运行在线导航。
 
-```bash
-cd ~/go2_nav/PCT-SCAN-ROS2
-PCT_ROS_DISTRO=foxy PCT_BUILD_TESTING=OFF bash scripts/build_workspace.sh \
-  --packages-up-to pct_scan_bridge scan_planner tomography
-source scripts/_pct_scan_env.sh
-cd go2_adapter_ws
-bash build_on_go2.sh
-source install/setup.bash
-```
+以下命令假设已经按部署文档设置 `GO2_NAV_ROOT`、`GO2_NAV_CONFIG` 并加载环境。
 
 在线入口需要 `tomography` 包，CPU 后端需要已有的 NumPy/SciPy。`auto` 优先选择
 可用的 CUDA/CuPy 后端，否则使用同一套 PCT 方程的 CPU 实现。未验证 Go2 上的处理
@@ -32,7 +24,8 @@ source install/setup.bash
 
 ## 2. 配置和启动
 
-文件：`src/go2_pct_adapter/config/go2.yaml`。
+文件：`$GO2_NAV_CONFIG`，即仓库内的
+`go2_adapter_ws/src/go2_pct_adapter/config/go2.yaml`。
 
 - `go2_state_adapter`：原有机体 odom、实时雷达点云、规划坐标系和 TF 配置。
 - `go2_online_planner.map_topic`：默认 `/uslam/cloud_map`，必须每条消息包含累计地图。
@@ -51,9 +44,9 @@ source install/setup.bash
 
 ```bash
 ros2 run go2_pct_adapter preflight \
-  --config "$PWD/src/go2_pct_adapter/config/go2.yaml"
+  --config "$GO2_NAV_CONFIG"
 ros2 launch go2_pct_adapter online_navigation.launch.py \
-  config:="$PWD/src/go2_pct_adapter/config/go2.yaml" body_height:=0.4
+  config:="$GO2_NAV_CONFIG" body_height:=0.4
 ```
 
 `body_height` 换成实际机体参考点离地高度。preflight 检查 odom 和实时点云；

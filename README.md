@@ -10,21 +10,18 @@
 未知区域的自主探索尚未实现。在线入口见
 [`go2_adapter_ws/ONLINE_GO2.md`](go2_adapter_ws/ONLINE_GO2.md)。
 
-克隆后，先将适配工作区复制到规划器旁边，以使用部署文档中的目录布局。
-以下复制命令只在相邻的 `go2_adapter_ws` 不存在时执行，避免覆盖已有工作区：
+在 Go2 扩展电脑上使用完整仓库，直接构建仓库内的接口工作区：
 
 ```bash
 git clone https://github.com/masakikkkk/PCT-SCAN-ROS2-realimplement.git PCT-SCAN-ROS2
 cd PCT-SCAN-ROS2
-if [ ! -e ../go2_adapter_ws ]; then
-  cp -a go2_adapter_ws ../go2_adapter_ws
-fi
 ```
 
 接下来按 [`go2_adapter_ws/DEPLOY_GO2.md`](go2_adapter_ws/DEPLOY_GO2.md) 操作。
 验证范围见 [`go2_adapter_ws/VALIDATION.md`](go2_adapter_ws/VALIDATION.md)。
-仓库内的 `go2_adapter_ws/` 是受 Git 管理的源码；相邻副本用于按现有文档构建。
-如在相邻副本中修改了接口代码，应将改动同步回仓库内再提交。
+仓库根目录的 `src/` 包含 PCT、SCAN 等算法；`go2_adapter_ws/src/` 只包含接口包。
+两者都需要。无需将 `go2_adapter_ws` 复制到仓库外；旧的独立接口包和 20261019
+压缩包不包含最新在线地图实现。此前文档混用了并列与嵌套布局，现已统一为嵌套布局。
 
 以下为上游演示和算法说明；演示场景结果不代表本 Fork 已完成 Go2 实机验证。
 
