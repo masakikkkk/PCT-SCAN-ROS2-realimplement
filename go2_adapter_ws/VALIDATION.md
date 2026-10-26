@@ -4,6 +4,25 @@ Date: 2026-10-21 (Asia/Shanghai).
 Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
 No ROS 2, Unitree SDK or system dependencies were installed.
 
+## Root command reference, 2026-10-26
+
+- Added COMMANDLIST.md at the repository root, linked prominently from both
+  README entry points and DEPLOY_GO2.md. It covers acquisition/version checks,
+  read-only inspection, ordinary dependencies, CMake, both builds, tests,
+  configuration, conditional uslam commands, runtime/RViz/goals/enable/cancel,
+  optional offline conversion, troubleshooting and Git updates.
+- All 48 Bash code blocks passed bash -n; internal section anchors, relative
+  document links and referenced entry-script paths were checked. The documented
+  Python command ran: 81 tests passed with the existing visualization warning.
+  The exact documented standalone C++ block compiled and passed both A* and
+  tracking assertions. Converter/inspector CLI parameter names were checked.
+- Height input is explicit; the new launch examples do not supply an assumed
+  0.4 m body height. The document distinguishes the physical body-height offset
+  from odom z and from the offline tomogram ground-height parameter.
+- No apt/pip dependency installation, Foxy build, uslam command or robot-control
+  command was executed for this documentation change. The optional Python 3.8
+  offline conversion environment installation was documented, not installed here.
+
 ## Unified input collection, 2026-10-26
 
 - Added standalone inspect_navigation.py, which runs before any adapter build.

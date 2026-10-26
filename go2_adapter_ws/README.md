@@ -1,5 +1,7 @@
 # Go2 EDU 的 PCT / SCAN 接口
 
+**所有执行命令统一入口：[仓库根目录 COMMANDLIST.md](../COMMANDLIST.md)。**
+
 部署步骤和实际目录见 [DEPLOY_GO2.md](DEPLOY_GO2.md)；在线累计地图原理见
 [ONLINE_GO2.md](ONLINE_GO2.md)：默认使用 `/uslam/cloud_map`，
 启动 `online_navigation.launch.py`，不需要预先生成 PCD 或 tomogram 文件。

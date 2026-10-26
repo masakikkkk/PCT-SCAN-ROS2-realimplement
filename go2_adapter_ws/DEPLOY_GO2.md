@@ -1,5 +1,8 @@
 # Go2 实机部署：使用完整仓库
 
+只找执行命令请直接看 [根目录 COMMANDLIST.md](../COMMANDLIST.md)，按 install / build /
+test / use 分类；本文件保留部署原理和参数说明。
+
 本说明统一使用“完整仓库内包含接口工作区”的布局。沿用 Go2 已有 Foxy、
 宇树消息/DDS、SLAM 和 Sport 运控，不安装 ROS，不启动另一套 SLAM。
 

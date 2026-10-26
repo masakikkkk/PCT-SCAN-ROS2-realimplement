@@ -1,5 +1,7 @@
 # PCT-SCAN-ROS2
 
+**Go2 用户先看根目录的 [COMMANDLIST.md：安装、编译、查询、测试、启动、RViz、停止与排错命令](COMMANDLIST.md)。**
+
 ## 本 Fork 的 Go2 EDU / Foxy 接入
 
 本 Fork 保留上游规划器，并加入 Foxy 兼容修改、闭环跟踪有效性检查和
