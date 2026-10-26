@@ -92,10 +92,13 @@ cd ~/PCT-SCAN-ROS2
 echo "$ROS_DISTRO"
 ros2 topic list -t
 /usr/bin/python3 -c 'import rclpy, tf2_ros, yaml, numpy, scipy, colcon_core; from unitree_api.msg import Request; print("Foxy / Python / Unitree imports: PASS")'
+test -f /opt/ros/foxy/setup.bash
 cmake --version
 ```
 
 应显示 `foxy` 并能看到机器人原有话题。PCT 原生依赖包括 GTSAM 4.2、OSQP 1.0。
+构建/运行环境脚本目前读取 `/opt/ros/foxy/setup.bash`；已有 Foxy 若位于其他位置，
+需按真实安装位置调整 `scripts/build_workspace.sh` 与 `scripts/_pct_scan_env.sh`。
 OSQP 1.0 要求 **CMake >= 3.18**；如果当前是 3.16，先按文末的 CMake 工具步骤处理。
 
 若缺少普通系统开发依赖，下面只安装编译工具、C++ 库及 Python 库，不安装 ROS 发行版。
@@ -105,7 +108,7 @@ OSQP 1.0 要求 **CMake >= 3.18**；如果当前是 3.16，先按文末的 CMake
 sudo apt-get update
 sudo apt-get install -y \
   build-essential git cmake ninja-build python3-dev python3-pip python3-venv \
-  python3-numpy python3-scipy python3-yaml \
+  python3-setuptools python3-wheel python3-pytest python3-numpy python3-scipy python3-yaml \
   libboost-all-dev libeigen3-dev libpcl-dev libopencv-dev \
   libarmadillo-dev libglm-dev libglew-dev libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev
 ```
@@ -113,11 +116,14 @@ sudo apt-get install -y \
 若已有 rosdep，可先检查包声明依赖；这是检查命令，不执行安装：
 
 ```bash
-rosdep check --from-paths src go2_adapter_ws/src --ignore-src \
-  --rosdistro foxy --skip-keys unitree_api
+rosdep check --from-paths src/planner src/pct src/integration/pct_scan_bridge \
+  go2_adapter_ws/src --ignore-src --rosdistro foxy \
+  --skip-keys 'unitree_api go2_description'
 ```
 
 `unitree_api` 由原有宇树工作区提供，已在上面的 Python 导入检查中验证。
+检查限定导航源码；`go2_description` 会随 colcon 正常构建安装，跳过检查它是为了
+不把 Humble/Gazebo 仿真依赖当成当前 Go2 导航的缺项。
 若缺少 ament、colcon、pybind11_vendor 等，需按实际报告补齐现有 Foxy 的开发依赖。
 不要套用仓库后半部分的 Humble 演示安装命令。
 
@@ -284,11 +290,12 @@ ros2 run go2_pct_adapter preflight --config "$GO2_NAV_CONFIG"
 ## 6. 终端 B：启动 PCT → SCAN → Sport 预览
 
 ```bash
+read -r -p '输入确认后的 body_height（米）：' GO2_BODY_HEIGHT
 ros2 launch go2_pct_adapter online_navigation.launch.py \
-  config:="$GO2_NAV_CONFIG" body_height:=0.4
+  config:="$GO2_NAV_CONFIG" body_height:="${GO2_BODY_HEIGHT:?请先输入实际高度}"
 ```
 
-`body_height` 换成机体参考点的真实离地高度，0.4 是示例。
+`body_height` 是机体参考点到脚下地面的高度偏移，不是 odom 的 z 坐标。
 该 launch 同时启动接口、在线 PCT、SCAN 和跟踪器。不要再同时启动
 `interfaces.launch.py` 或测试速度发布器，避免重复节点或速度源。
 无需预先提供 PCD/pickle：输入地图被转换为内存 tomogram。
@@ -311,6 +318,8 @@ rviz2
 4. 给出目标；起点由当前里程计提供，无需手动设置。
 
 目标 z 表示地面高度。普通二维点击适用于相应高度平面，不能自动选择其他楼层。
+若二维工具发出 z=0，而地图中的目标地面并非 z=0，请用下方 CLI 输入真实地面 z；
+本入口不会自动从目标 z 中扣除机身高度。
 没有 RViz 时，可以在第 3 步环境加载后，用 CLI 给一个明确 XYZ 的目标：
 
 ```bash
@@ -375,9 +384,11 @@ ros2 topic pub --once --keep-alive 1.0 /pct_go2/cancel std_msgs/msg/Empty '{}'
 完成相同构建和环境加载后，可改用以下入口：
 
 ```bash
+read -r -p '输入实际场地 pickle 绝对路径：' GO2_TOMOGRAM_PATH
+read -r -p '输入确认后的 body_height（米）：' GO2_BODY_HEIGHT
 ros2 launch go2_pct_adapter navigation.launch.py \
   config:="$GO2_NAV_CONFIG" \
-  tomogram_path:=/absolute/path/your_environment.pickle body_height:=0.4
+  tomogram_path:="${GO2_TOMOGRAM_PATH:?}" body_height:="${GO2_BODY_HEIGHT:?}"
 ```
 
 只有这个离线模式需要提前生成场地 tomogram；不要使用演示地图代替真实场地。

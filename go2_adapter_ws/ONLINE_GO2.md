@@ -51,8 +51,14 @@ PCT/SCAN 分用 map/odom 并处理回环跳变的完整方案尚未实现。
 ```bash
 ros2 run go2_pct_adapter preflight \
   --config "$GO2_NAV_CONFIG"
+```
+
+结果 PASS 后，填写实际机身参考点离地高度并启动：
+
+```bash
+read -r -p '输入确认后的 body_height（米）：' GO2_BODY_HEIGHT
 ros2 launch go2_pct_adapter online_navigation.launch.py \
-  config:="$GO2_NAV_CONFIG" body_height:=0.4
+  config:="$GO2_NAV_CONFIG" body_height:="${GO2_BODY_HEIGHT:?请先输入实际高度}"
 ```
 
 `body_height` 换成实际机体参考点离地高度。preflight 检查 odom 和实时点云；
@@ -80,6 +86,8 @@ rviz2
 跨楼层时还必须给出正确的目标地面高度 z；普通二维目标操作不能代替三维楼层选择，
 可以由程序或 CLI 发布包含明确 XYZ 的 PoseStamped。
 目标 z 表示地面高度。目标可先于首份地图到达，后续地图就绪会自动尝试规划。
+若二维目标工具输出 z=0，而目标地面在规划坐标系内并非 z=0，请使用命令总表的
+CLI 目标入口明确填写地面高度；代码不会自动从目标 z 扣除 `body_height`。
 端点只允许默认 0.4 m 水平、0.25 m 高度容差的吸附，防止吸附到其他楼层或遥远边界。
 
 ```bash

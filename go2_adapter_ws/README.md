@@ -1,6 +1,7 @@
 # Go2 EDU 的 PCT / SCAN 接口
 
 **所有执行命令统一入口：[仓库根目录 COMMANDLIST.md](../COMMANDLIST.md)。**
+远端文件与文档一致性核查见 [DELIVERY_AUDIT.md](DELIVERY_AUDIT.md)。
 
 部署步骤和实际目录见 [DEPLOY_GO2.md](DEPLOY_GO2.md)；在线累计地图原理见
 [ONLINE_GO2.md](ONLINE_GO2.md)：默认使用 `/uslam/cloud_map`，
@@ -98,7 +99,7 @@ SLAM 明确发布世界坐标速度，则设置 `world`。SCAN 源码直接将�
 配置，也不要为了本接口重新安装 ROS。然后在本工作区执行：
 
 ```bash
-cd '/home/yeyu/go2 planner/PCT-SCAN-ROS2/go2_adapter_ws'
+cd ~/PCT-SCAN-ROS2/go2_adapter_ws
 bash build_on_go2.sh
 source install/setup.bash
 ros2 run go2_pct_adapter preflight
@@ -174,11 +175,13 @@ SportClient 构造参数默认 `enableLease=false`，但应以你们机器的 SD
 入口。在完整仓库根目录，先加载算法工作区，再加载仓库内的接口工作区：
 
 ```bash
-export GO2_NAV_ROOT="$PWD"
-source "$GO2_NAV_ROOT/scripts/_pct_scan_env.sh"
-source "$GO2_NAV_ROOT/go2_adapter_ws/install/setup.bash"
+cd ~/PCT-SCAN-ROS2
+source go2_adapter_ws/env_on_go2.bash
+read -r -p '输入实际场地 pickle 绝对路径：' GO2_TOMOGRAM_PATH
+read -r -p '输入确认后的 body_height（米）：' GO2_BODY_HEIGHT
 ros2 launch go2_pct_adapter navigation.launch.py \
-  tomogram_path:=/absolute/path/your_environment.pickle body_height:=0.4
+  config:="$GO2_NAV_CONFIG" tomogram_path:="${GO2_TOMOGRAM_PATH:?}" \
+  body_height:="${GO2_BODY_HEIGHT:?}"
 ```
 
 不要在不同 ROS 发行版之间混用 setup.bash。本地修正后的上游 build_workspace.sh /
@@ -186,7 +189,8 @@ _pct_scan_env.sh 支持现有 `ROS_DISTRO` 或显式 `PCT_ROS_DISTRO=foxy`；TF2
 也已兼容 Foxy 的 .h。上游的其他 C++ 与依赖仍需在现有 Foxy 上实编验证；脚本不会
 自动安装 ROS。本次没有在当前主机运行完整算法编译。
 
-`body_height` 是机体参考点离地高度，需要按真实模型设置，0.4 只是上游默认值。
+`body_height` 是机体参考点离地高度，需要按真实模型设置，不是 odom 的 z。
+launch 源码仍保留上游默认值 0.4，但上面的部署命令会显式传入确认后的实际值。
 PCT 起点使用机体 z 减去这个高度，目标 z 表示目标地表高度；SCAN 再加回相同高度。
 这种偏移用于初步接口接入，并不等于楼梯上的精确地面估计。
 

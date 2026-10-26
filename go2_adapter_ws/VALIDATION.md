@@ -4,6 +4,23 @@ Date: 2026-10-21 (Asia/Shanghai).
 Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
 No ROS 2, Unitree SDK or system dependencies were installed.
 
+## Remote delivery and documentation consistency, 2026-10-26
+
+- Cloned actual GitHub main into a fresh /tmp directory at 79c57a6, independent
+  of local ignored files and build outputs. All 377 tracked files checked out.
+  Rechecked 62 literal CMake sources/subdirectories, 18 setuptools resource
+  inputs, 3 adapter launch files, 5 console entries and all relative Markdown
+  file targets. No missing delivery input was found.
+- In that remote clone, the documented 81 Python tests and both standalone C++
+  test programs passed. Building and Plaza tomogram inspectors also passed.
+  The existing visualization warning remains; no actual ROS node was started.
+- Unified deployment height input across Go2 docs, scoped rosdep checks to
+  navigation inputs, clarified RViz ground z and the existing /opt/ros/foxy
+  setup-path requirement. All 114 Bash blocks in the seven entry/reference
+  documents passed bash -n. Runtime/build/launch source behavior was unchanged.
+- Full details and external runtime prerequisites are in DELIVERY_AUDIT.md.
+  This does not replace target-machine Foxy compilation or real DDS/TF testing.
+
 ## Root command reference, 2026-10-26
 
 - Added COMMANDLIST.md at the repository root, linked prominently from both

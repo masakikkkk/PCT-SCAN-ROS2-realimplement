@@ -26,6 +26,8 @@ cd PCT-SCAN-ROS2
 压缩包不包含最新在线地图实现。此前文档混用了并列与嵌套布局，现已统一为嵌套布局。
 
 以下为上游演示和算法说明；演示场景结果不代表本 Fork 已完成 Go2 实机验证。
+**Go2 / Foxy 用户的安装和运行命令以 [COMMANDLIST.md](COMMANDLIST.md) 为准。
+下面 Ubuntu 22.04 / Humble 的演示安装章节不用于狗上的部署。**
 
 PCT-SCAN-ROS2 将 PCT 的跨层全局规划器与 SCAN 的局部轨迹规划器几何，用 ROS 2 Humble 运行。PCT 负责在 tomogram 层析图中选择楼层、楼梯和坡道，SCAN 沿全局路线持续生成局部 B-spline。RViz 同时显示点云、路线和 Go2 运动动画。
 

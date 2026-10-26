@@ -147,11 +147,15 @@ bash go2_adapter_ws/inspect_go2.sh > go2_interfaces.txt 2>&1
 ```bash
 cd ~/PCT-SCAN-ROS2
 /usr/bin/python3 -c 'import rclpy, tf2_ros, launch_ros, yaml, numpy, scipy, colcon_core; from unitree_api.msg import Request; print("Foxy / Unitree / build imports: PASS")'
+test -f /opt/ros/foxy/setup.bash
 cmake --version
 ```
 
 `unitree_api` 来自你们原有宇树工作区；导入失败时先加载正确的 setup 环境。
 这里不下载替代 SDK，也不安装 ROS 发行版。
+构建和运行环境脚本目前要求 `/opt/ros/foxy/setup.bash` 存在；若已有 Foxy 使用其他
+安装路径，先按真实位置调整 `scripts/build_workspace.sh` 和 `scripts/_pct_scan_env.sh`
+中的 setup 路径，再继续构建。第 2 节的独立采集脚本没有这个路径要求。
 
 ### 3.2 普通系统开发库和 Python 测试工具
 
@@ -171,12 +175,16 @@ sudo apt-get install -y \
 已有 rosdep 时可查询缺少的 ROS 开发依赖；这条只检查，不安装：
 
 ```bash
-rosdep check --from-paths src go2_adapter_ws/src --ignore-src \
-  --rosdistro foxy --skip-keys unitree_api
+rosdep check --from-paths src/planner src/pct src/integration/pct_scan_bridge \
+  go2_adapter_ws/src --ignore-src --rosdistro foxy \
+  --skip-keys 'unitree_api go2_description'
 ```
 
-若缺少 colcon、ament、pybind11_vendor 等，按结果补齐现有 Foxy 的开发环境。
-不要执行上游 Humble 的整套安装命令。在线 CPU tomogram 不需要 Open3D 或 CUDA。
+这里限定导航源码目录，避免扫入 Humble/Gazebo 仿真依赖。`unitree_api` 由原环境
+提供；`go2_description` 仍会由后面的 colcon 构建安装，本检查跳过它，避免把只用于
+仿真的运行依赖列成 Go2 导航的缺项。若缺少 colcon、ament、pybind11_vendor 等，
+按结果补齐现有 Foxy 的开发环境。不要执行上游 Humble 的整套安装命令。
+在线 CPU tomogram 不需要 Open3D 或 CUDA。
 
 ### 3.3 CMake 低于 3.18 时才执行
 
@@ -423,6 +431,9 @@ launch 不自动打开 RViz。RViz 中：
 3. 目标工具（如 2D Goal Pose）在 Tool Properties 中将 Topic 设为 `/pct_go2/goal`。
 4. 在已观测的可通行地面给目标。目标 z 是地面高度；二维点击不能自动选其他楼层。
 
+如果二维目标工具发出的 z=0，而目标地面在规划坐标系中不是 z=0，它不会自动减去
+`body_height`。此时用第 8.3 节明确填写地面 z；超出高度吸附容差的目标会被拒绝。
+
 起点使用当前里程计，不需要手动设置。只收到地图尚不会自动开始运动。
 
 ### 8.3 没有 RViz 时，用终端给明确 XYZ 目标
@@ -652,5 +663,6 @@ HTTPS clone 后，push 需要 GitHub 已配置的凭据；不要用 GitHub 登�
 
 部署原理与参数说明见 [DEPLOY_GO2.md](go2_adapter_ws/DEPLOY_GO2.md)，在线地图契约见
 [ONLINE_GO2.md](go2_adapter_ws/ONLINE_GO2.md)，实际验证范围见
-[VALIDATION.md](go2_adapter_ws/VALIDATION.md)。完整 Foxy 编译、真实 DDS/TF 和物理导航
+[VALIDATION.md](go2_adapter_ws/VALIDATION.md)，交付核查见
+[DELIVERY_AUDIT.md](go2_adapter_ws/DELIVERY_AUDIT.md)。完整 Foxy 编译、真实 DDS/TF 和物理导航
 仍需在 Go2 上完成验证；本表中的实机命令不是已执行成功的记录。
