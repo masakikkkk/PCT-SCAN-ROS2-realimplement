@@ -4,6 +4,24 @@ Date: 2026-10-21 (Asia/Shanghai).
 Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
 No ROS 2, Unitree SDK or system dependencies were installed.
 
+## Unified input collection, 2026-10-26
+
+- Added standalone inspect_navigation.py, which runs before any adapter build.
+  It records odom/cloud summaries, observed receive rates, timestamp ages,
+  publisher/subscriber QoS, TF edges and latest/message-time transform queries.
+  It creates no control publisher, calls no business services and starts no SLAM.
+- Candidate full/incremental-map semantics, the physical odom reference point,
+  body_height, loop closure and lease access remain explicitly unverified.
+  Observed topic types alone do not imply a publisher exists; endpoints and
+  received counts are recorded separately.
+- Python 3.8 compilation, --help, invalid-duration and missing-rclpy handling
+  passed. Three temporary fake-ROS transport scenarios passed: normal samples
+  with a retained map and partial TF, no input messages, and missing TF. They
+  also covered paths with spaces and nonfinite odometry serialization. These
+  checks do not validate real Foxy/DDS reception or TF correctness on the robot.
+- Checked the ROS 2 Foxy rclpy Node and tf2_ros Buffer source APIs. No ROS was
+  installed and no navigation, SLAM or motion command was executed on Go2.
+
 ## Deployment commands and environment helper, 2026-10-26
 
 - Expanded DEPLOY_GO2.md with existing-Foxy prerequisites, dependency/planner/

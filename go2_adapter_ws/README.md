@@ -203,15 +203,39 @@ PCT 起点使用机体 z 减去这个高度，目标 z 表示目标地表高度�
 
 ## 只读采集实际接口
 
-在 Go2 的现有 Foxy 终端，先按 [DEPLOY_GO2.md](DEPLOY_GO2.md) 设置
-`GO2_NAV_ROOT` 为完整仓库根目录，再执行：
+在 Go2 的现有 Foxy/宇树终端，进入完整仓库后执行，不需要先编译接口包：
 
 ```bash
-bash "$GO2_NAV_ROOT/go2_adapter_ws/inspect_go2.sh" > go2_interfaces.txt 2>&1
+cd ~/PCT-SCAN-ROS2
+/usr/bin/python3 go2_adapter_ws/inspect_navigation.py --output go2_navigation_report.json
 ```
 
-脚本只读取图和消息定义，不发送控制命令。还需记录所选 odom 的 header.frame_id、
-child_frame_id，以及点云 header.frame_id / 时间戳。仅凭当前话题列表无法确定这些值。
+路径不同就替换 `cd`。默认采集 20 秒，报告包含候选 odom/点云/地图的类型、
+发布者 QoS、frame、首末消息摘要、接收频率、时间戳、TF 边及实际时间变换查询，
+以及 Sport/lease 接口的类型和节点信息。缺少话题或 TF 会记录在报告中。
+频率是本机观察值；只在固定窗口采样，未收到不等于系统不具备该功能。
+对发现的全为 TRANSIENT_LOCAL 的点云发布者，会使用同样的持久性接收历史地图；
+若发布者在采集过程中才出现，其历史消息可能无法收到，可在其运行后重新采集。
+
+脚本只创建订阅并读取 ROS 图，不发布控制指令、不启动 SLAM，也不修改配置。
+`body_height` 不会自动猜测：仍需确认 odom 的物理参考点，并测量其到脚下地面的
+高度差。点云点数不能证明消息是完整地图，TF 存在不能证明回环修正生效，lease
+话题存在也不能证明固件强制要求租赁。
+
+若 uslam 尚未运行，先保留一次报告；用你们原有 client 启动建图后再采一次：
+
+```bash
+/usr/bin/python3 go2_adapter_ws/inspect_navigation.py --output go2_navigation_report_uslam.json
+```
+
+需要同时查 uslam 安装配置时，额外运行以下已有脚本；在扩展电脑上找不到机身主机
+的文件不代表没有配置。详情见 [USLAM_AUDIT.md](USLAM_AUDIT.md)。
+
+```bash
+/usr/bin/python3 go2_adapter_ws/inspect_uslam.py > uslam_inventory.txt 2>&1
+```
+
+原 `inspect_go2.sh` 仍可用于单独导出消息定义；上述采集报告不代替部署时的 preflight。
 
 ## 本地检查（不需要 ROS）
 

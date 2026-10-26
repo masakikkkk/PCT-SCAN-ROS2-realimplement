@@ -63,6 +63,19 @@ ls "$GO2_NAV_ROOT/scripts/build_workspace.sh" \
 
 ## 2. 在扩展电脑上构建一次
 
+如果目前只核查接口，**不用先构建，也不用启动导航**。在能看到狗上话题的现有
+Foxy/宇树终端，进入完整仓库，运行下面一条采集命令即可（约 20 秒）：
+
+```bash
+cd ~/PCT-SCAN-ROS2
+/usr/bin/python3 go2_adapter_ws/inspect_navigation.py --output go2_navigation_report.json
+```
+
+已有其他路径就替换 `cd`。报告覆盖 frame、频率、时间戳、TF、地图消息摘要和
+控制话题类型。`body_height` 需要确认物理参考点后测量，完整地图/增量地图和租赁
+权限仍需接口证据；脚本不会自动判断这些语义。uslam 未启动时可先采一次，再用原有
+client 启动后换输出文件名重采。完整说明见 [README.md](README.md#只读采集实际接口)。
+
 以下约定扩展电脑上的完整仓库位于 `~/PCT-SCAN-ROS2`，与第 1 步 clone 的名字一致。
 已有其他安装位置时，只替换每个终端开头的 `cd`，无需移动源码。
 开发电脑对应位置为 `/home/yeyu/go2 planner/PCT-SCAN-ROS2`；它只有 Noetic，
