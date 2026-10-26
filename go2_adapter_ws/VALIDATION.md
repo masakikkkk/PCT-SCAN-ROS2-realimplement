@@ -4,6 +4,27 @@ Date: 2026-10-21 (Asia/Shanghai).
 Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
 No ROS 2, Unitree SDK or system dependencies were installed.
 
+## Deployment commands and environment helper, 2026-10-26
+
+- Expanded DEPLOY_GO2.md with existing-Foxy prerequisites, dependency/planner/
+  adapter build commands and logs, per-terminal setup, conditional uslam client
+  commands, actual input/TF checks, RViz/CLI goals, preview, enable and cancellation.
+- Added source-only env_on_go2.bash to locate the nested workspace and load both
+  overlays. Temporary shell fixtures passed for paths with spaces, overlay order,
+  custom/missing configuration, missing build outputs, wrong ROS distribution,
+  failed sourcing, errexit and preservation of the caller's nounset setting.
+- All 61 Bash blocks in the five entry documents passed bash -n (not executed).
+  Relative document links and git diff --check passed.
+- inspect_uslam.py ran on Python 3.8 with temporary configuration and fake ROS CLI
+  fixtures, including the three candidate command interfaces. These are read-only
+  collection checks, not real DDS or robot results; details are in USLAM_AUDIT.md.
+- Checked the Foxy ros2topic implementation for --once/--keep-alive and OSQP 1.0.0
+  sources for the minimum CMake version of 3.18. No dependency installer, ROS build,
+  uslam command, navigation node or motion command was executed on the robot.
+- The current planner still uses one planning_frame and transforms map snapshots
+  into it. A separate global map/local odom architecture with explicit handling
+  of loop-closure corrections remains unimplemented and unverified.
+
 ## Deployment documentation correction, 2026-10-23
 
 - Confirmed that the Git repository is the full `PCT-SCAN-ROS2/` directory.

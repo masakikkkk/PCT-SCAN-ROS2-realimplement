@@ -5,6 +5,11 @@
 重建；完成后在内存切换 PCT 地图，重新选择切片、搜索当前目标。
 `/utlidar/cloud_deskewed` 继续只供 SCAN 实时局部感知。没有启动第二套 SLAM。
 
+`/uslam/cloud_map` 是尚待实机核实的候选输入，建图 client 的启动方式和地图发布
+条件见 [DEPLOY_GO2.md](DEPLOY_GO2.md) 第 4 步及 [USLAM_AUDIT.md](USLAM_AUDIT.md)。
+本入口不启动 uslam，也不实现连续扫描累积。当前地图会转入统一的 `planning_frame`；
+PCT/SCAN 分用 map/odom 并处理回环跳变的完整方案尚未实现。
+
 这是无先验地图的在线规划入口，第一版只导航至已观测且连通的区域。目标尚不可达时，
 保留原目标并等待后续地图，不把远目标裁剪到地图边缘，也不驱动机器人自主探索。
 更新地图和内部重规划会清空旧路线、暂停跟踪，可能出现停走；同一目标已获得的运动
@@ -12,9 +17,10 @@
 
 ## 1. 目录、构建和环境加载
 
-统一按 [DEPLOY_GO2.md](DEPLOY_GO2.md) 第 1～3 步操作：使用完整仓库内的
+统一按 [DEPLOY_GO2.md](DEPLOY_GO2.md) 操作：使用完整仓库内的
 `go2_adapter_ws`，先构建算法（包含 tomography），再构建接口，并加载两份
-`install/setup.bash`。只复制接口包不足以运行在线导航。
+`install/setup.bash`（新终端可 `source go2_adapter_ws/env_on_go2.bash`）。
+只复制接口包不足以运行在线导航。
 
 以下命令假设已经按部署文档设置 `GO2_NAV_ROOT`、`GO2_NAV_CONFIG` 并加载环境。
 
@@ -110,7 +116,7 @@ ros2 topic pub --once /pct_go2/motion_enable std_msgs/msg/Bool '{data: true}'
 ros2 topic pub --once /pct_go2/cancel std_msgs/msg/Empty '{}'
 ```
 
-旧 Foxy CLI 没有 `--once` 时使用 `--rate 1`，发送后 Ctrl+C。
+标准 Foxy CLI 支持 `--once`，也可用 `--times 1`；不要持续重复发布 uslam 的开始建图命令。
 控制权、SDK 租赁和底层断网停车要求沿用 [DEPLOY_GO2.md](DEPLOY_GO2.md)。
 累计点云的可靠地面/顶部观测、SLAM 回环与定位一致性、PCT 台阶通行模型和 SCAN
 碰撞模型的一致性，以及物理运动效果仍须在机器人上验证。

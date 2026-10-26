@@ -7,6 +7,10 @@
 
 代码在现有 Foxy 环境中使用；本工作区不安装 ROS、SDK、SLAM，也不启动底层控制器。
 
+完整部署、uslam 准备、RViz 目标和执行命令已统一写在 [DEPLOY_GO2.md](DEPLOY_GO2.md)。
+完成构建后，每个新终端在完整仓库根目录 `source go2_adapter_ws/env_on_go2.bash`
+加载两套工作区。uslam 参数及协议核查见 [USLAM_AUDIT.md](USLAM_AUDIT.md)。
+
 本工作区位于完整仓库内部，算法源码在 `../src/`，构建脚本在 `../scripts/`。
 仓库以原上游提交 `1cf45a1c12ca785ce533293302be09d51daf0ccb` 为基础加入实机接口和
 在线地图功能；该哈希不是当前版本。上游要求 Humble；本地额外修正了构建/
