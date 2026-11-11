@@ -38,6 +38,23 @@ def setup(context):
     scan_share = get_package_share_directory("scan_planner")
     pct_share = get_package_share_directory("pct_planner")
     online = settings.get("go2_online_planner", {}).get("ros__parameters", {})
+    maintained = mode == "online" and online.get("map_source", "external") == "maintained"
+    mapping_nodes = []
+    if maintained:
+        if not state["cloud_is_world"]:
+            raise RuntimeError("Maintained mapping requires cloud_is_world=true and world-frame points")
+        maintenance = settings.get("go2_map_maintenance", {}).get("ros__parameters", {})
+        publish_hz = float(maintenance.get("publish_rate_hz", 1.0))
+        heartbeat = float(online.get("map_heartbeat_timeout_sec", 1.5))
+        if (not math.isfinite(publish_hz) or publish_hz <= 0 or
+                not math.isfinite(heartbeat) or heartbeat <= 1.0 / publish_hz):
+            raise RuntimeError("Map heartbeat timeout must exceed the map publication period")
+        mapping_nodes.append(Node(
+            package="go2_map_maintenance", executable="map_maintenance_node",
+            name="go2_map_maintenance", output="screen", parameters=[config, {
+                "planning_frame": frame, "base_frame": state["base_frame"],
+                "min_confirmed_points": online.get("map_min_points", 500),
+            }]))
     return [
         Node(package="go2_pct_adapter", executable="state_adapter",
              name="go2_state_adapter", parameters=[config], output="screen"),
@@ -45,6 +62,7 @@ def setup(context):
              name="go2_sport_bridge", parameters=[config, {
                  "require_route_valid": True, "require_tracking_valid": True,
              }], output="screen"),
+        *mapping_nodes,
         Node(package="go2_pct_adapter", executable=(
                  "online_pct_bridge" if mode == "online" else "live_pct_bridge"),
              name="pct_scan_bridge", output="screen", parameters=[online if mode == "online" else {}, {

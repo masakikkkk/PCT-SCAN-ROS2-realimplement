@@ -7,8 +7,9 @@
 本 Fork 保留上游规划器，并加入 Foxy 兼容修改、闭环跟踪有效性检查和
 [`go2_adapter_ws/`](go2_adapter_ws/) 中的 Go2 接口、配置与部署文档。
 接口复用机器人已有的 SLAM 和宇树运控，默认只预览运动请求。
-支持从 `/uslam/cloud_map` 在线生成 tomogram、重新规划已观测区域内的目标，
-不再必须预先生成地图文件；完整 Foxy 编译、CUDA 和实机运行尚待验证。
+默认从开机点云维护有界静态场景地图，在线生成 tomogram，并重新规划已观测区域内
+的目标，无须启动 uslam 或预先提供地图文件。外部 uslam 地图入口继续保留。
+完整 Foxy 编译、CUDA 和实机运行尚待验证；累计维护不提供动态清除或回环修正。
 未知区域的自主探索尚未实现。在线入口见
 [`go2_adapter_ws/ONLINE_GO2.md`](go2_adapter_ws/ONLINE_GO2.md)。
 
@@ -21,7 +22,7 @@ cd PCT-SCAN-ROS2
 
 接下来按 [`go2_adapter_ws/DEPLOY_GO2.md`](go2_adapter_ws/DEPLOY_GO2.md) 操作。
 验证范围见 [`go2_adapter_ws/VALIDATION.md`](go2_adapter_ws/VALIDATION.md)。
-仓库根目录的 `src/` 包含 PCT、SCAN 等算法；`go2_adapter_ws/src/` 只包含接口包。
+仓库根目录的 `src/` 包含 PCT、SCAN 等算法；`go2_adapter_ws/src/` 包含 Go2 接口与地图维护包。
 两者都需要。无需将 `go2_adapter_ws` 复制到仓库外；旧的独立接口包和 20261019
 压缩包不包含最新在线地图实现。此前文档混用了并列与嵌套布局，现已统一为嵌套布局。
 

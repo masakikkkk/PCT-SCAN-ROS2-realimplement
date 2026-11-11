@@ -5,6 +5,8 @@ test / use 分类；本文件保留部署原理和参数说明。
 
 本说明统一使用“完整仓库内包含接口工作区”的布局。沿用 Go2 已有 Foxy、
 宇树消息/DDS、SLAM 和 Sport 运控，不安装 ROS，不启动另一套 SLAM。
+2026-11-11 默认新增开机点云的有界静态场景累计，不需要启动 uslam。
+先只看累计地图，可直接按根目录命令表第 0.1 节执行。
 
 ## 1. 先分清目录
 
@@ -22,13 +24,15 @@ PCT-SCAN-ROS2/                       ← 完整仓库根目录，GO2_NAV_ROOT �
 │   └── planner/plan_manage/        ← scan_planner 包
 └── go2_adapter_ws/                 ← 仓库内的接口工作区
     ├── DEPLOY_GO2.md
-    ├── build_on_go2.sh             ← 只构建接口包
-    └── src/go2_pct_adapter/
-        ├── config/go2.yaml
-        └── launch/online_navigation.launch.py
+    ├── build_on_go2.sh             ← 构建接口、地图维护及消息
+    └── src/
+        ├── go2_map_maintenance/    ← C++ 累计核心、节点、MapSnapshot 消息
+        └── go2_pct_adapter/
+            ├── config/go2.yaml
+            └── launch/online_navigation.launch.py
 ```
 
-`go2_adapter_ws/src` 只有接口源码，不能代替根目录的算法 `src`。
+`go2_adapter_ws/src` 包含接口和小型地图维护层，不能代替根目录的算法 `src`。
 **只传 `go2_adapter_ws` 到扩展电脑，无法启动完整导航。** 请传整个仓库，或在扩展
 电脑上克隆自己的 Fork。不要再把仓库内的接口工作区复制到外面。
 
@@ -149,8 +153,8 @@ BUILD
 ```
 
 如果仓库路径不同，子 shell 里的 `cd` 也要替换。第一套构建结果在根目录 `install/`，
-接口结果在 `go2_adapter_ws/install/`。在线模式必须构建 `tomography`。
-`build_on_go2.sh` 单独只构建接口，不能代替完整算法构建；无需再应用历史 patch。
+接口与地图维护结果在 `go2_adapter_ws/install/`。在线模式必须构建 `tomography`。
+`build_on_go2.sh` 构建两个接口工作区包及消息，不能代替算法构建；无需历史 patch。
 完整 Foxy 编译、真实 DDS/TF、在线处理性能及物理运动仍待实机验证。
 
 ## 3. 每个新终端的环境加载
@@ -175,11 +179,17 @@ ros2 pkg prefix pct_planner
 ros2 pkg prefix tomography
 ros2 pkg prefix scan_planner
 ros2 pkg prefix go2_pct_adapter
+ros2 pkg prefix go2_map_maintenance
 ros2 pkg executables go2_pct_adapter
+ros2 pkg executables go2_map_maintenance
 /usr/bin/python3 -c 'import pct_planner.lib.a_star, pct_planner.lib.ele_planner; from tomography.cpu_backend import cpu_point2map; import go2_pct_adapter.online_pct_bridge; print("Online planner imports: PASS")'
 ```
 
-## 4. 终端 A：准备 uslam 地图输入
+## 4. 可选：外部 uslam 地图输入
+
+默认 `map_source: maintained` 由完整 launch 自动启动累计地图节点，跳过本节即可。
+外部地图才设置 `map_source: external` 并按下文核查输出。新维护层的健康/版本契约
+见 [ONLINE_GO2.md](ONLINE_GO2.md)。
 
 优先使用你们原有 client。你记得的 `mapstart` 是启动建图的线索，并不能唯一确认
 协议或回环配置。先查看接口和日志：
@@ -234,7 +244,7 @@ timeout 5s ros2 topic echo /utlidar/robot_odom --no-arr
 timeout 5s ros2 topic echo /utlidar/cloud_deskewed --no-arr
 ```
 
-当前在线入口要求 `map_topic` 是含 XYZ 的 `sensor_msgs/msg/PointCloud2`，每条消息
+外部地图入口要求 `map_topic` 是含 XYZ 的 `sensor_msgs/msg/PointCloud2`，每条消息
 已经包含要规划的累计地图，时间戳有效并持续更新；默认十秒超时。不满足时需适配地图
 输出，或使用离线 tomogram 入口。不能直接将单帧 `cloud_world_ds` 或 `cloud_deskewed`
 改作 `map_topic` 来代替累计地图。只收到单次地图，也不能据此宣称在线链路已就绪。
@@ -256,7 +266,9 @@ nano "$GO2_NAV_CONFIG"
 | state 与 sport 的 `base_frame` | 均等于所选机体 odom 的 `child_frame_id` |
 | state 的 `cloud_is_world` | 实时点云已在 planning_frame 中为 true；在雷达系中为 false |
 | state 的 `sensor_frame` | 实际雷达坐标系；现有 TF 中能查到 base 到 sensor |
-| online 的 `map_topic` | 已确认满足上一步数据要求的地图话题 |
+| online 的 `map_source` | 默认 maintained，需要外部地图才改 external |
+| online 的 `maintained_map_topic` | 默认 `/pct_go2/map_snapshot` |
+| online 的 `map_topic` | 只在 external 模式使用 |
 | sport 的 `enable_motion` | 保持 false，先看预览 |
 
 **当前代码只使用一个 `planning_frame`。**默认保留 utlidar 机体里程计和 `odom`；
@@ -296,9 +308,9 @@ ros2 launch go2_pct_adapter online_navigation.launch.py \
 ```
 
 `body_height` 是机体参考点到脚下地面的高度偏移，不是 odom 的 z 坐标。
-该 launch 同时启动接口、在线 PCT、SCAN 和跟踪器。不要再同时启动
+该 launch 同时启动接口、累计地图、在线 PCT、SCAN 和跟踪器。不要再同时启动
 `interfaces.launch.py` 或测试速度发布器，避免重复节点或速度源。
-无需预先提供 PCD/pickle：输入地图被转换为内存 tomogram。
+默认无需启动 uslam 或预先提供 PCD/pickle：累计地图被转换为内存 tomogram。
 地图、里程计或 TF 不可用时会等待/拒绝路线，不会凭空得到全局地图。
 只支持已观测且连通的区域；未知目标会等待新地图，没有自主探索模块。
 
@@ -313,7 +325,7 @@ rviz2
 当前 launch **不自动打开 RViz**。在 RViz 设置：
 
 1. Fixed Frame 使用配置中的 `planning_frame`，模板是 `odom`。
-2. 添加 PointCloud2 `/pct_go2/tomogram`、`/pct_go2/cloud` 和 Path `/pct_go2/global_path`。
+2. 添加 PointCloud2 `/pct_go2/tomogram`、`/pct_go2/cloud`、`/pct_go2/accumulated_cloud` 和 Path `/pct_go2/global_path`。
 3. 在目标工具（如 2D Goal Pose）的 Tool Properties 中，把 Topic 设为 `/pct_go2/goal`。
 4. 给出目标；起点由当前里程计提供，无需手动设置。
 
@@ -378,6 +390,9 @@ ros2 topic pub --once --keep-alive 1.0 /pct_go2/cancel std_msgs/msg/Empty '{}'
 关闭导航前先取消目标，再在终端 B Ctrl+C。停止 uslam 建图、保存地图等操作继续使用
 原 client，避免将停止建图当作暂停机器狗的命令。桥进程崩溃、断网后的停车和遥控接管
 仍依赖底层控制器；上下楼及 CPU/CUDA 性能需另外实测。
+
+累计图第一版用于静态、小范围实验，无动态清除和回环修正。清图先取消目标，再发布
+一次 Empty 到 `/pct_go2/reset_map`，命令见总表第 8.7 节；之后需重新给目标。
 
 ## 已有离线 tomogram 时
 

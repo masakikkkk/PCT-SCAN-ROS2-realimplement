@@ -9,7 +9,8 @@ go2_state_adapter:
     sensor_frame: utlidar_lidar
     # Standard Odometry twist is in child_frame_id; some SLAMs publish world twist.
     odom_twist_frame: child
-    cloud_is_world: false
+    # Confirmed by both supplied Go2 reports: cloud_deskewed.header.frame_id=odom.
+    cloud_is_world: true
     # Look up base_frame -> sensor_frame in your EXISTING TF tree.
     use_tf_extrinsic: true
     # Only used with use_tf_extrinsic=false; replace with measured extrinsics.
@@ -42,9 +43,36 @@ go2_sport_bridge:
     require_tracking_valid: false
     tracking_timeout_sec: 0.25
 
-# Used by online_navigation.launch.py; no prebuilt PCD/pickle is required.
+# Conservative, bounded STATIC-SCENE accumulation; no clearing or loop closure.
+# Bounds are half-extents about the first accepted robot position (20x20x8 m).
+go2_map_maintenance:
+  ros__parameters:
+    cloud_topic: /pct_go2/cloud
+    odom_topic: /pct_go2/body_pose
+    planning_frame: odom
+    base_frame: base_link
+    voxel_size: 0.10
+    min_observations: 3
+    candidate_ttl_sec: 5.0
+    max_voxels: 200000
+    max_input_points: 200000
+    extent_xy_m: 10.0
+    extent_z_m: 4.0
+    integration_rate_hz: 5.0
+    publish_rate_hz: 1.0
+    source_timeout_sec: 0.5
+    max_pose_cloud_skew_sec: 0.10
+    translation_jump_m: 0.5
+    rotation_jump_rad: 0.7853981633974483
+
+# Used by online_navigation.launch.py; no uslam service or prebuilt map required.
 go2_online_planner:
   ros__parameters:
+    map_source: maintained
+    maintained_map_topic: /pct_go2/map_snapshot
+    map_heartbeat_timeout_sec: 1.5
+    map_input_timeout_sec: 1.5
+    # Used only with map_source=external; e.g. a verified uslam snapshot source.
     map_topic: /uslam/cloud_map
     map_update_period_sec: 2.0
     map_timeout_sec: 10.0

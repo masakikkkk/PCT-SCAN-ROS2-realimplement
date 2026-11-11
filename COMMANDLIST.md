@@ -2,7 +2,13 @@
 
 这份文件放在**完整仓库根目录**，与最外层 `README.md`、`src/`、`scripts/` 同级。
 用于本 Fork 的 Go2 接入；沿用狗上已有 Foxy、宇树 SDK/DDS、SLAM 和 Sport 运控。
-不需要安装另一套 ROS。更新日期：2026-10-26。
+不需要安装另一套 ROS。更新日期：2026-11-11。
+
+**当前默认：开机点云 → 有界累计地图 → PCT，SCAN 继续接实时点云，无需启动 uslam。**
+本版针对静态、小范围实验，没有动态清除或回环修正。更新后必须重新构建
+`go2_adapter_ws`，其中新增 C++ 包及 MapSnapshot 消息，只有 git pull 不够。
+若 `GO2_NAV_CONFIG` 指向自己保存的旧配置副本，还需合并新的 maintained 地图参数；
+缺少 `map_source` 的旧配置按兼容模式继续使用 external，不会自动改为新维护层。
 
 | 要做的事 | 位置 |
 | --- | --- |
@@ -12,13 +18,14 @@
 | 编译算法和 Go2 接口 | [4](#4-build编译两套工作区) |
 | 单元测试、C++ 测试、构建后的检查 | [5](#5-test测试与构建检查) |
 | 修改话题、坐标系和高度配置 | [6](#6-config修改实际配置) |
-| 查询或启动 uslam | [7](#7-uslam查询与建图入口) |
+| 可选外部 uslam 地图 | [7](#7-uslam查询与建图入口) |
 | 日常启动、RViz、目标、运动使能、停止 | [8](#8-use日常在线导航) |
 | 离线 PCD 转 tomogram 和离线导航 | [9](#9-可选离线地图模式) |
 | 排错、导出报告 | [10](#10-debug排错与导出报告) |
 | 修改后重新构建、上传 GitHub | [11](#11-update更新代码与上传修改) |
 
-首次部署按 **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8**；只采接口就做到第 2 节。
+首次部署按 **1 → 2 → 3 → 4 → 5 → 6 → 8**，第 7 节为可选外部地图。
+只采接口就做到第 2 节。
 已经装好后，日常使用看第 8 节。每个代码块按所在章节的条件执行，不要把整份文档
 作为一个脚本运行；尤其不要一起执行“开始运动”和“取消目标”。
 
@@ -37,6 +44,39 @@ cd '/home/yeyu/go2 planner/PCT-SCAN-ROS2'
 Foxy 命令在**原来就能看到狗上话题的终端**执行；沿用你们原来的宇树环境加载方式。
 开发电脑只有 Noetic，不在它上面执行 Foxy 构建或导航，也不为此安装 ROS 2。
 第 5.1、5.2 节的独立测试可以在开发电脑运行。
+
+### 0.1 先单独检查累计地图，不启动规划和运动
+
+已有 Foxy/宇树环境，在完整仓库根目录执行：
+
+```bash
+cd ~/PCT-SCAN-ROS2
+git pull --ff-only origin main
+bash go2_adapter_ws/build_on_go2.sh --map-only
+source go2_adapter_ws/install/setup.bash
+ros2 run go2_map_maintenance map_maintenance_node --ros-args \
+  --params-file go2_adapter_ws/src/go2_pct_adapter/config/go2.yaml \
+  -p cloud_topic:=/utlidar/cloud_deskewed -p odom_topic:=/utlidar/robot_odom
+```
+
+这里直接接报告中同为 odom 系的原始输入，只检查累计地图；不需要 PCT 原生依赖、
+宇树控制消息 Python 包、机身到雷达 TF 或 body_height，不启动 state_adapter、SCAN 和 Sport。
+第 4 节完整构建时不加 `--map-only`，会继续构建 Python 接口。
+**输入时基仍须一致**，报告里的未来时间差不会被绕过，未校时会显示输入时间无效。
+缺少 rclcpp/rosidl 等开发依赖时按错误补齐现有 Foxy 环境，不另装 ROS 发行版。
+
+另一个相同环境的终端：
+
+```bash
+cd ~/PCT-SCAN-ROS2
+source go2_adapter_ws/install/setup.bash
+timeout 5s ros2 topic echo /pct_go2/map_status
+rviz2
+```
+
+RViz Fixed Frame 为 `odom`，添加 PointCloud2 `/pct_go2/accumulated_cloud`。
+看到 `healthy: true`、`reason: ready` 和累计点云后，Ctrl+C 结束单独节点，再按第 8 节
+启动全链路；launch 会自动启动维护节点。越界、容量超限或定位跳变按第 8.7 节重置。
 
 ## 1. 获取代码和确认版本
 
@@ -227,7 +267,7 @@ BUILD
 ```
 
 第一步联网构建 GTSAM 4.2 / OSQP 1.0 到 `.deps/install/`；算法产物在根目录
-`install/`，接口产物在 `go2_adapter_ws/install/`。只运行最后一条接口构建不够。
+`install/`，接口和地图维护产物在 `go2_adapter_ws/install/`。最后一条工作区构建不足以启动完整导航。
 若路径不同，也要替换子 shell 里的 `cd`。无需重新打历史 `pct_scan_foxy.patch`。
 
 ### 4.2 每个新终端加载运行环境
@@ -243,6 +283,15 @@ source go2_adapter_ws/env_on_go2.bash
 Foxy/宇树/DDS 环境。不能用 `bash env_on_go2.bash` 替代 `source`。
 
 ## 5. Test：测试与构建检查
+
+新增地图维护核心 → 真实 CPU tomogram → 原生 PCT A* 的合成测试，无需 ROS/SDK：
+
+```bash
+bash scripts/test_go2_accumulation.sh
+```
+
+需要已有 C++17、Eigen 和系统 NumPy/SciPy。实际编译并运行累计核心与 A*，不启动
+ROS 节点或机器狗；Foxy C++ 节点与消息生成仍需目标机编译验证。
 
 ### 5.1 Python 单元测试，无需 ROS 2
 
@@ -288,7 +337,10 @@ ros2 pkg prefix pct_planner
 ros2 pkg prefix tomography
 ros2 pkg prefix scan_planner
 ros2 pkg prefix go2_pct_adapter
+ros2 pkg prefix go2_map_maintenance
 ros2 pkg executables go2_pct_adapter
+ros2 pkg executables go2_map_maintenance
+/usr/bin/python3 -c 'from go2_map_maintenance.msg import MapSnapshot; print("MapSnapshot import: PASS")'
 /usr/bin/python3 -c 'import pct_planner.lib.a_star, pct_planner.lib.ele_planner; from tomography.cpu_backend import cpu_point2map; import go2_pct_adapter.online_pct_bridge; print("Online planner imports: PASS")'
 ```
 
@@ -322,7 +374,9 @@ nano "$GO2_NAV_CONFIG"
 | state / sport 的 `base_frame` | 同一值，匹配已确认的机身 `child_frame_id` |
 | state 的 `cloud_topic` / `cloud_is_world` | 实时点云；已在 planning_frame 为 true，雷达系为 false |
 | state 的 `sensor_frame` / `use_tf_extrinsic` | 真实雷达 frame，优先复用已有机身到雷达 TF |
-| online 的 `map_topic` | 持续更新、每条完整累计、含 XYZ 的 PointCloud2 地图 |
+| online 的 `map_source` | 默认 maintained，使用新地图节点；external 才接外部地图 |
+| online 的 `maintained_map_topic` | 默认 `/pct_go2/map_snapshot`，版本/健康与完整地图 |
+| online 的 `map_topic` | 仅 external 模式使用，需完整累计 PointCloud2 |
 | sport 的 `enable_motion` | 保持 false，启动后先预览 |
 | sport 的 `require_lease` | 由固件/SDK 的真实控制权限要求决定 |
 
@@ -339,6 +393,9 @@ ros2 run go2_pct_adapter preflight --config "$GO2_NAV_CONFIG"
 当前实现使用一个 `planning_frame`；完整的全局 map / 局部 odom 回环处理架构尚未完成。
 
 ## 7. uslam：查询与建图入口
+
+**默认开机点云累计方案跳过本节。** 若改用外部地图，设置 `map_source: external`、
+`map_topic: /uslam/cloud_map` 后再核查输出。maintained 模式不订阅外部 map_topic。
 
 ### 7.1 优先继续使用你们现有 client
 
@@ -386,13 +443,13 @@ timeout 5s ros2 topic echo /uslam/frontend/odom --no-arr
 timeout 5s ros2 topic echo /uslam/localization/odom --no-arr
 ```
 
-在线入口要求持续、新鲜、完整累计的地图，默认十秒超时。单帧去畸变点云或一份旧地图
+外部地图入口要求持续、新鲜、完整累计的地图，默认十秒超时。单帧去畸变点云或一份旧地图
 不能直接替代它；不满足时要适配地图源，或用第 9 节离线入口。也不能只改 frame 名。
 
 ## 8. Use：日常在线导航
 
-前提：已编译，配置通过 preflight，原有 Sport 运控就绪，且已准备符合第 7 节要求的
-累计地图输入。首次到现场先完成接口采集；以下启动命令不代表这些前提已在真机验证。
+前提：已编译，配置通过 preflight，原有 Sport 运控就绪；默认自动生成累计地图，
+不要求第 7 节 uslam。首次到现场先采接口；以下命令不代表实机前提已验证。
 
 ### 8.1 终端 A：启动导航，默认预览
 
@@ -410,7 +467,7 @@ ros2 launch go2_pct_adapter online_navigation.launch.py \
   config:="$GO2_NAV_CONFIG" body_height:="${GO2_BODY_HEIGHT:?请先输入实际高度}"
 ```
 
-该入口启动接口、在线 PCT、SCAN 和局部跟踪器；默认不使能运动。
+该入口启动接口、C++ 累计地图、在线 PCT、SCAN 和局部跟踪器；默认不使能运动。
 不要同时再启动 `interfaces.launch.py` 或另一个速度发布器。
 在线模式不需要 PCD/pickle 文件，只能规划已观测且连通的区域，不会自主探索未知区域。
 
@@ -427,7 +484,7 @@ rviz2
 launch 不自动打开 RViz。RViz 中：
 
 1. Fixed Frame 设为配置中的 `planning_frame`。
-2. 添加 PointCloud2 `/pct_go2/cloud`、`/pct_go2/tomogram`，及 Path `/pct_go2/global_path`。
+2. 添加 PointCloud2 `/pct_go2/cloud`、`/pct_go2/accumulated_cloud`、`/pct_go2/tomogram`，及 Path `/pct_go2/global_path`。
 3. 目标工具（如 2D Goal Pose）在 Tool Properties 中将 Topic 设为 `/pct_go2/goal`。
 4. 在已观测的可通行地面给目标。目标 z 是地面高度；二维点击不能自动选其他楼层。
 
@@ -459,8 +516,9 @@ timeout 5s ros2 topic echo /pct_go2/bridge_status
 timeout 5s ros2 topic echo /pct_go2/sport_request_preview
 ```
 
+先查看 `/pct_go2/map_status`，`healthy=true`、`reason=ready` 表示累计地图输入就绪。
 `route_ready` 表示全局路线就绪，实际运动还要有有效跟踪、输入和控制权限。
-`waiting_for_map` / `map_timeout` 先查地图源；`start_not_observed` /
+`waiting_for_map` / `map_timeout` 先查地图维护状态和地图源；`start_not_observed` /
 `goal_not_observed` 查地面、目标高度和坐标对齐；`no_known_route` 表示已知地图未找到连通路线。
 监视命令被 `timeout` 结束时可能返回 124，这是限时采样的正常退出方式。
 
@@ -494,6 +552,18 @@ ros2 topic pub --once --keep-alive 1.0 /pct_go2/cancel std_msgs/msg/Empty '{}'
 关闭导航前先取消，再到终端 A 按 Ctrl+C；RViz 可另外关闭。重新开始时重新给目标并使能。
 停 uslam、保存地图继续按原有 client 流程；停止建图不是暂停运动命令。
 遥控接管和底层停车沿用机器人原有机制。
+
+### 8.7 清空累计地图，恢复锁定故障
+
+场景变化留下旧点、容量超限、机器人越界或定位跳变时，先取消目标，再显式清图：
+
+```bash
+ros2 topic pub --once --keep-alive 1.0 /pct_go2/cancel std_msgs/msg/Empty '{}'
+ros2 topic pub --once --keep-alive 1.0 /pct_go2/reset_map std_msgs/msg/Empty '{}'
+```
+
+输入正常并重新得到地图后，需要重新给目标并使能。第一版不会自动清除已确认动态
+障碍物残留，也不会恢复旧目标。地图节点重启同样视为新会话。
 
 ## 9. 可选：离线地图模式
 

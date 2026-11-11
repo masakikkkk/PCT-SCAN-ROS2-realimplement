@@ -1,4 +1,4 @@
-"""Go2 navigation using the existing SLAM's accumulated /uslam/cloud_map."""
+"""Go2 navigation using bounded boot-cloud accumulation or an external map."""
 
 import os
 

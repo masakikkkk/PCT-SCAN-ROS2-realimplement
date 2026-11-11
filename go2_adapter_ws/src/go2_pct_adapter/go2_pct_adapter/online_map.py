@@ -13,6 +13,10 @@ from .core import finite, rotate
 
 
 ONLINE_DEFAULTS = {
+    "map_source": "external",  # maintained uses a versioned MapSnapshot envelope.
+    "maintained_map_topic": "/pct_go2/map_snapshot",
+    "map_heartbeat_timeout_sec": 1.5,
+    "map_input_timeout_sec": 1.5,
     "map_topic": "/uslam/cloud_map",
     "map_timeout_sec": 10.0,
     "map_update_period_sec": 2.0,
@@ -42,7 +46,8 @@ ONLINE_DEFAULTS = {
 def validate_settings(settings):
     cfg = dict(ONLINE_DEFAULTS)
     cfg.update(settings)
-    for name in ("map_timeout_sec", "map_update_period_sec", "resolution",
+    for name in ("map_timeout_sec", "map_update_period_sec", "map_heartbeat_timeout_sec",
+                 "map_input_timeout_sec", "resolution",
                  "slice_height", "interval_min", "interval_free", "step_max",
                  "cost_barrier", "goal_snap_radius_m", "goal_height_tolerance_m",
                  "goal_reached_radius_m"):
@@ -68,6 +73,8 @@ def validate_settings(settings):
         raise ValueError("cost_barrier must exceed PCT's 20.0 traversability threshold")
     if not isinstance(cfg["require_ceiling_observation"], bool) or not cfg["map_topic"]:
         raise ValueError("Invalid ceiling policy or map topic")
+    if cfg["map_source"] not in ("external", "maintained") or not cfg["maintained_map_topic"]:
+        raise ValueError("Invalid map_source or maintained_map_topic")
     return cfg
 
 

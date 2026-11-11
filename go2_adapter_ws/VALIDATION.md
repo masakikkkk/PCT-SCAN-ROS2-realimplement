@@ -4,6 +4,51 @@ Date: 2026-10-21 (Asia/Shanghai).
 Host: Ubuntu 20.04 x86_64, system Python 3.8.10, ROS Noetic only.
 No ROS 2, Unitree SDK or system dependencies were installed.
 
+## Boot-cloud accumulation prototype, 2026-11-11
+
+- Added the separate ament_cmake package go2_map_maintenance, a ROS-independent
+  bounded C++ voxel accumulator/PointCloud2 decoder, the ROS node, and a generated
+  MapSnapshot interface bundling full geometry, source time, epoch, revision and
+  health. It is a static-scene prototype: no clearing, loop closure or exploration.
+- Updated the default Go2 YAML from the real reports: world cloud in odom,
+  maintained map source. The online launch starts the mapper; external maps and
+  offline tomograms remain available. The adapter build now builds the mapper
+  dependency and checks generated-message serialization.
+  The optional --map-only build omits SDK/control imports and builds just the
+  standard-message mapper, allowing standalone accumulation inspection first.
+- 95 Python tests passed, including maintained-map fault/staleness/reset handling,
+  heartbeat recovery, failed-build isolation, unchanged geometry avoiding rebuild,
+  same-revision payload conflicts, source selection and rate configuration.
+  The pre-existing visualization NaN comparison warning remains.
+- scripts/test_go2_accumulation.sh ran the actual C++ accumulator/decoder checks
+  (30 including its room fixture), exported 5002 confirmed points, ran the actual
+  CPU tomogram builder (2 layers, 34x24 cells), compiled the original native PCT
+  A* and found a route. UndefinedBehaviorSanitizer was enabled.
+- The standalone accumulator/decoder also passed AddressSanitizer with leak
+  detection disabled: this host's ptrace environment prevents LeakSanitizer from
+  operating. No leak-check claim is made.
+- Python 3.8 compilation, package XML, Bash syntax and document/resource path
+  checks passed. Foxy rclcpp Node and rosidl_target_interfaces source APIs were
+  checked; this is not a ROS build or ABI test.
+- Repeated the 95 Python tests and native/CPU/A* smoke from a clean Git-tree
+  archive containing only staged delivery files, without build/install outputs.
+  Checked 117 Bash documentation blocks, 64 literal CMake references, 18 Python
+  installation resources, relative Markdown targets and the MapSnapshot schema.
+- **Not executed here:** Foxy message generation, C++ ROS-node compilation/linking,
+  DDS, robot TF, CUDA, target-machine timing and physical motion. The host still
+  has Noetic only; no ROS 2 or SDK was installed and no robot command was sent.
+- The supplied reports' clock skew, missing sensor TF/fixed extrinsics and the
+  actual body-height offset remain deployment inputs. No fabricated transform,
+  timestamp rebasing, disabled freshness check or automatic motion enable was
+  added to bypass them. Map-only inspection can use the world cloud directly
+  without TF/body-height; full SCAN navigation still needs the true sensor origin.
+
+Reproduce the new non-ROS pipeline from the repository root:
+
+```bash
+bash scripts/test_go2_accumulation.sh
+```
+
 ## Remote delivery and documentation consistency, 2026-10-26
 
 - Cloned actual GitHub main into a fresh /tmp directory at 79c57a6, independent

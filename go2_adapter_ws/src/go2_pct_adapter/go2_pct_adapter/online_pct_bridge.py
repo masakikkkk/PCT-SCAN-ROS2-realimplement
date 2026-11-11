@@ -1,4 +1,4 @@
-"""Build PCT snapshots from /uslam/cloud_map and replan an observed goal.
+"""Build PCT from maintained or external map snapshots and replan observed goals.
 
 No SLAM, frontier exploration, controller or motion enable is started here.
 Map builds run in one daemon worker; completed planners are swapped by the ROS
@@ -6,6 +6,7 @@ executor, never mutated concurrently with A*.
 """
 
 import json
+import hashlib
 import math
 import queue
 import threading
@@ -45,6 +46,14 @@ class OnlinePCTBridge(LivePCTBridge):
         self.map_sequence = self.built_sequence = self.fault_epoch = 0
         self.map_received = self.active_map_received = -math.inf
         self.active_map_stamp = 0.0
+        self.active_map_sequence = 0
+        self.maintained_epoch = None
+        self.retired_map_epochs = set()
+        self.maintained_version = -1
+        self.maintained_digest = None
+        self.maintained_healthy = False
+        self.maintained_received = -math.inf
+        self.maintained_stamp = 0.0
         self.last_build = -math.inf
         self.building = False
         self.build_results = queue.Queue(maxsize=1)
@@ -52,17 +61,104 @@ class OnlinePCTBridge(LivePCTBridge):
         self.needs_plan = self.route_active = False
         self.reason, self.backend, self.last_error = "waiting_for_map", "", ""
         self.status_pub = self.create_publisher(String, "/pct_go2/online_status", 1)
-        self.map_sub = self.create_subscription(
-            PointCloud2, self.online["map_topic"], self.on_map,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+        if self.online["map_source"] == "maintained":
+            from go2_map_maintenance.msg import MapSnapshot
+            self.map_sub = self.create_subscription(
+                MapSnapshot, self.online["maintained_map_topic"], self.on_maintained_map,
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+        else:
+            self.map_sub = self.create_subscription(
+                PointCloud2, self.online["map_topic"], self.on_map,
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.online_timer = self.create_timer(0.2, self.online_tick)
-        self.get_logger().info("Online PCT waiting for accumulated PointCloud2 on " +
-                               self.online["map_topic"])
+        self.get_logger().info("Online PCT map source: " + self.online["map_source"])
+
+    def maintained_input_fresh(self):
+        now = time.monotonic()
+        return (self.maintained_healthy and
+                0 <= now - self.maintained_received <= self.online["map_heartbeat_timeout_sec"] and
+                stamp_is_fresh(self.get_clock().now().nanoseconds * 1e-9,
+                               self.maintained_stamp, self.online["map_input_timeout_sec"]))
 
     def map_fresh(self, received, stamp):
-        return (0 <= time.monotonic() - received <= self.online["map_timeout_sec"] and
+        now = time.monotonic()
+        health = self.online["map_source"] != "maintained" or self.maintained_input_fresh()
+        return (health and 0 <= now - received <= self.online["map_timeout_sec"] and
                 stamp_is_fresh(self.get_clock().now().nanoseconds * 1e-9, stamp,
                                self.online["map_timeout_sec"]))
+
+    def reject_map(self, reason):
+        self.latest_map = None
+        self.fault_epoch += 1
+        self.active_map_received = -math.inf
+        self.active_map_sequence = 0
+        self.last_error = reason
+        self.clear_online_route("invalid_map")
+
+    def on_maintained_map(self, msg):
+        """Health, session, revision and full geometry arrive in ONE message."""
+        try:
+            if not msg.epoch or len(msg.epoch) > 256:
+                raise ValueError("Missing/oversized map epoch")
+            if msg.epoch in self.retired_map_epochs:
+                return  # A delayed old-session packet must not replace a new map.
+            if msg.epoch != self.maintained_epoch:
+                if self.maintained_epoch is not None:
+                    self.retired_map_epochs.add(self.maintained_epoch)
+                    if len(self.retired_map_epochs) > 256:
+                        raise ValueError("Too many map resets; restart navigation")
+                    self.on_cancel(None)  # Goals expressed in an old session are invalid.
+                self.maintained_epoch = msg.epoch
+                self.maintained_version = -1
+                self.maintained_digest = None
+                self.maintained_healthy = False
+                self.reject_map("map_session_changed")
+            if not msg.healthy:
+                raise ValueError("Map maintenance: " + msg.reason)
+            stamp = stamp_seconds(msg.header.stamp)
+            if (msg.header.frame_id != self.frame_id or
+                    msg.cloud.header.frame_id != self.frame_id or
+                    stamp != stamp_seconds(msg.cloud.header.stamp) or
+                    not stamp_is_fresh(self.get_clock().now().nanoseconds * 1e-9,
+                                       stamp, self.online["map_input_timeout_sec"])):
+                raise ValueError("Maintained map frame/timestamp mismatch")
+            if msg.version < self.maintained_version or msg.version < 1:
+                raise ValueError("Map version regressed or is uninitialized")
+            cloud = msg.cloud
+            count = cloud.width * cloud.height
+            if (not (self.online["map_min_points"] <= count <= self.online["map_max_points"]) or
+                    cloud.height != 1 or cloud.point_step != 12 or cloud.row_step != count * 12 or
+                    len(cloud.data) != cloud.row_step):
+                raise ValueError("Invalid maintained map point count/layout")
+            # Header time may advance with fresh observations, while geometry
+            # and revision remain identical. Detect a broken producer contract.
+            layout = (cloud.width, cloud.height, cloud.point_step, cloud.row_step,
+                      cloud.is_bigendian,
+                      tuple((f.name, f.offset, f.datatype, f.count) for f in cloud.fields))
+            digest = hashlib.sha256(repr(layout).encode() + bytes(cloud.data)).digest()
+            if msg.version == self.maintained_version and digest != self.maintained_digest:
+                raise ValueError("Map geometry changed without a revision change")
+            changed = (msg.version != self.maintained_version or
+                       not self.maintained_healthy or self.latest_map is None)
+            self.maintained_received = time.monotonic()
+            self.maintained_stamp = stamp
+            self.maintained_healthy = True
+            self.maintained_version, self.maintained_digest = msg.version, digest
+            if changed:
+                self.on_map(cloud)
+                if self.latest_map is None:
+                    self.maintained_healthy = False
+            else:
+                old = self.latest_map
+                self.map_received = self.maintained_received
+                self.latest_map = (cloud, old[1], old[2], old[3], self.map_received, stamp, old[6])
+                # Renew only SUCCESSFULLY installed, identical geometry. A
+                # failed build must never revive the previous planner.
+                if self.active_map_sequence == self.map_sequence:
+                    self.active_map_received, self.active_map_stamp = self.map_received, stamp
+        except Exception as exc:
+            self.maintained_healthy = False
+            self.reject_map(str(exc))
 
     def clear_online_route(self, reason):
         # Internal map refreshes stop tracking but preserve the user's existing
@@ -100,11 +196,7 @@ class OnlinePCTBridge(LivePCTBridge):
             self.latest_map = (msg, translation, rotation, self.map_sequence,
                                self.map_received, stamp, self.fault_epoch)
         except Exception as exc:
-            self.latest_map = None
-            self.fault_epoch += 1
-            self.active_map_received = -math.inf
-            self.last_error = str(exc)
-            self.clear_online_route("invalid_map")
+            self.reject_map(str(exc))
 
     def launch_build(self, snapshot):
         self.building = True
@@ -199,6 +291,10 @@ class OnlinePCTBridge(LivePCTBridge):
             self.reason, self.last_error = "planning_failed", str(exc)
 
     def online_tick(self):
+        if (self.online["map_source"] == "maintained" and self.maintained_healthy and
+                not self.maintained_input_fresh()):
+            self.maintained_healthy = False
+            self.reject_map("Maintained map input/heartbeat timeout")
         try:
             candidate, meta, seq, received, stamp, epoch, error = self.build_results.get_nowait()
         except queue.Empty:
@@ -207,14 +303,21 @@ class OnlinePCTBridge(LivePCTBridge):
             self.building = False
             # Remember failed attempts too: retry only with a NEW map message.
             self.built_sequence = seq
+            if (self.online["map_source"] == "maintained" and self.latest_map is not None and
+                    seq == self.latest_map[3] and epoch == self.latest_map[6]):
+                # A slow build of unchanged geometry can use its newer verified
+                # input heartbeat; no old/failed/different-session map is renewed.
+                received, stamp = self.latest_map[4:6]
             if error or epoch != self.fault_epoch or not self.map_fresh(received, stamp):
                 self.active_map_received = -math.inf
+                self.active_map_sequence = 0
                 self.last_error = error or "Map build was superseded by an invalid/stale input"
                 self.clear_online_route("map_build_failed")
             else:
                 self.clear_online_route("map_updated")
                 self.planner = candidate
                 self.active_map_received, self.active_map_stamp = received, stamp
+                self.active_map_sequence = seq
                 self.backend = meta["backend"]
                 self.needs_plan = self.requested_goal is not None
                 self.last_error = ""
@@ -224,6 +327,10 @@ class OnlinePCTBridge(LivePCTBridge):
                     except Exception as exc:
                         self.get_logger().warning("Tomogram visualization failed: " + str(exc))
         if not self.map_fresh(self.active_map_received, self.active_map_stamp):
+            if self.route_active and self.requested_goal is not None:
+                # Freshness recovery must create a new timed trajectory even
+                # when the recovered map geometry has not changed.
+                self.needs_plan = True
             self.clear_online_route("waiting_for_map" if self.built_sequence == 0 else "map_timeout")
         elif self.requested_goal is not None:
             start = self.robot_ground()
@@ -240,7 +347,10 @@ class OnlinePCTBridge(LivePCTBridge):
                 time.monotonic() - self.last_build >= self.online["map_update_period_sec"]):
             self.launch_build(self.latest_map)
         self.status_pub.publish(String(data=json.dumps({
-            "reason": self.reason, "map_topic": self.online["map_topic"],
+            "reason": self.reason, "map_topic": (self.online["maintained_map_topic"]
+                if self.online["map_source"] == "maintained" else self.online["map_topic"]),
+            "map_source": self.online["map_source"],
+            "geometry_version": getattr(self, "maintained_version", None),
             "map_sequence": self.map_sequence, "built_sequence": self.built_sequence,
             "building": self.building, "backend": self.backend,
             "have_goal": self.requested_goal is not None,

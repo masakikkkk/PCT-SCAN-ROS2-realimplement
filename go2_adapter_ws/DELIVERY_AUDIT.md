@@ -1,5 +1,17 @@
 # 远端交付文件与文档一致性核查
 
+本文件记录 2026-10-26 基线核查。2026-11-11 新增地图维护包和消息，文件数量、依赖和
+默认地图源已改变；最新实现与验证见 [ONLINE_GO2.md](ONLINE_GO2.md)、
+[VALIDATION.md](VALIDATION.md) 最新段落。
+
+## 2026-11-11 累计地图版本
+
+待交付 Git 树共 387 个文件，已从该树导出干净源码副本，未包含本地 build/install。
+在副本上通过 95 项 Python 测试，以及累计核心 → 真实 CPU tomogram → 原生 PCT A*
+的合成测试。64 处 CMake 字面量源码/子目录、18 个 Python 安装资源、117 个 Bash
+文档代码块和相对文档链接已检查。新增包、节点和 MapSnapshot.msg 均纳入交付。
+完整 Foxy 编译、消息生成及真机运行仍未执行；后续下文为历史核查记录。
+
 日期：2026-10-26。范围：本 Fork 的 Go2 / Foxy 部署，以根目录
 [COMMANDLIST.md](../COMMANDLIST.md) 为执行命令入口。
 

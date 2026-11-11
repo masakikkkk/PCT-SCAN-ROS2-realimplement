@@ -4,13 +4,13 @@
 远端文件与文档一致性核查见 [DELIVERY_AUDIT.md](DELIVERY_AUDIT.md)。
 
 部署步骤和实际目录见 [DEPLOY_GO2.md](DEPLOY_GO2.md)；在线累计地图原理见
-[ONLINE_GO2.md](ONLINE_GO2.md)：默认使用 `/uslam/cloud_map`，
+[ONLINE_GO2.md](ONLINE_GO2.md)：默认用开机点云生成有界累计地图，
 启动 `online_navigation.launch.py`，不需要预先生成 PCD 或 tomogram 文件。
 以下原有 `navigation.launch.py` 示例默认是离线地图模式。
 
 代码在现有 Foxy 环境中使用；本工作区不安装 ROS、SDK、SLAM，也不启动底层控制器。
 
-完整部署、uslam 准备、RViz 目标和执行命令已统一写在 [DEPLOY_GO2.md](DEPLOY_GO2.md)。
+完整部署、可选 uslam 准备、RViz 目标和执行命令已统一写在 [DEPLOY_GO2.md](DEPLOY_GO2.md)。
 完成构建后，每个新终端在完整仓库根目录 `source go2_adapter_ws/env_on_go2.bash`
 加载两套工作区。uslam 参数及协议核查见 [USLAM_AUDIT.md](USLAM_AUDIT.md)。
 
@@ -27,16 +27,20 @@
 - `sport_bridge`：将机体系 `Twist` 转为 `unitree_api/msg/Request`；支持预览、限速、
   使能、输入超时停止、外部运动租赁 ID。
 - `live_pct_bridge`：收到目标时，以最新机体里程计计算 PCT 起点，避免沿用演示起点。
+- `go2_map_maintenance`：新增 C++ 有界静态场景累计节点及 MapSnapshot 消息；
+  相同版本仅更新健康，新增稳定表面才触发 PCT 重建。不具备动态清除或回环修正。
 - `navigation.launch.py`：把上述接口、PCT、SCAN 和仓库现有闭环跟踪器连接起来。
   不启动模拟器，不重启你们的 SLAM，不写入宇树 `/uslam/navigation/global_path`。
 
-当前主机只有 Noetic，未安装或修改 ROS 2。在线版本通过 Python 3.8 构建和 /tmp
+当前主机只有 Noetic，未安装或修改 ROS 2。2026-11-11 累计版本的验证见
+[VALIDATION.md](VALIDATION.md) 最新段落。以下 81 项和安装检查为此前外部地图版本的记录：
+在线版本通过 Python 3.8 构建和 /tmp
 前缀安装检查，五个入口及三个 launch 文件均已安装；81 项 Python 测试通过
 （77 项接口/在线地图测试和 4 项桥接辅助测试）。原生 A* 的失败后重规划回归也已
 独立编译运行。尚未运行 rclpy 节点、Foxy colcon 构建、CUDA 或实机运动验证。
 详情及可复现命令见 [VALIDATION.md](VALIDATION.md)。
 
-按步骤上机见 `DEPLOY_GO2.md`。`build_on_go2.sh` 在既有 Foxy 环境构建本包并检查真实
+按步骤上机见 `DEPLOY_GO2.md`。`build_on_go2.sh` 在既有 Foxy 环境构建地图包与接口包并检查真实
 消息序列化及节点导入，不安装依赖、不启动控制；`preflight` 在 Go2 上只读检查传感器、
 坐标系和 TF。
 
@@ -58,6 +62,10 @@
 | `/pct_go2/body_pose` | SCAN 机体位姿；twist 转为规划坐标系速度 |
 | `/pct_go2/sensor_pose` | 同一规划坐标系内的传感器位姿 |
 | `/pct_go2/cloud` | 保留原始数据和时间戳的点云 |
+| `/pct_go2/map_snapshot` | 累计地图、会话、几何版本与健康状态 |
+| `/pct_go2/accumulated_cloud` | 健康时发布的累计表面点，用于可视化 |
+| `/pct_go2/map_status` | 地图维护诊断 |
+| `/pct_go2/reset_map` | 显式清空地图，之后需重新给目标 |
 | `/pct_go2/global_path` | PCT 输出的地表路径 |
 | `/pct_go2/bspline` | SCAN 输出的局部轨迹 |
 | `/pct_go2/sport_request_preview` | 实际序列化的运动请求预览 |
@@ -106,8 +114,9 @@ ros2 run go2_pct_adapter preflight
 ros2 launch go2_pct_adapter interfaces.launch.py
 ```
 
-复制到机器人后，将 `cd` 路径换成复制后的路径。只构建这一个接口包不需要编译 PCT、
-GTSAM、OSQP 或 SCAN，也不要求它们已经安装。rclpy、TF 和宇树消息包由现有 Foxy 提供。
+复制到机器人后，将 `cd` 路径换成复制后的路径。这个脚本构建两个接口工作区包，
+包括 C++ 地图节点和消息，不需要编译 PCT、GTSAM、OSQP 或 SCAN。
+rclpy、rclcpp、rosidl、TF 和宇树消息包由现有 Foxy 提供。
 
 可指定配置副本：
 

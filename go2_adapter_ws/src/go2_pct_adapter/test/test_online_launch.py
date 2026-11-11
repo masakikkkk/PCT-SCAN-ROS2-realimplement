@@ -36,6 +36,10 @@ def test_online_launch_needs_no_pickle_and_uses_configured_map(launcher):
                and node.name == 'pct_scan_bridge'][0]
     assert planner.executable == 'online_pct_bridge'
     assert planner.parameters[0]['map_topic'] == '/uslam/cloud_map'
+    assert planner.parameters[0]['map_source'] == 'maintained'
+    mapper = [node for node in nodes if node.package == 'go2_map_maintenance'][0]
+    assert mapper.parameters[1]['planning_frame'] == 'odom'
+    assert mapper.parameters[1]['min_confirmed_points'] == 500
     assert planner.parameters[1]['defer_map_loading'] is True
     sport = [node for node in nodes if node.name == 'go2_sport_bridge'][0]
     assert sport.parameters[1]['require_route_valid'] is True
@@ -52,4 +56,39 @@ def test_bad_map_mode_is_rejected(launcher):
     launch, context = launcher
     context['map_mode'] = 'typo'
     with pytest.raises(RuntimeError, match='map_mode'):
+        launch.setup(context)
+
+
+def test_external_map_mode_does_not_launch_accumulator(launcher, tmp_path):
+    import yaml
+    launch, context = launcher
+    settings = yaml.safe_load(Path(context['config']).read_text())
+    settings['go2_online_planner']['ros__parameters']['map_source'] = 'external'
+    config = tmp_path / 'external.yaml'
+    config.write_text(yaml.safe_dump(settings))
+    context['config'] = str(config)
+    assert not any(node.package == 'go2_map_maintenance' for node in launch.setup(context))
+
+
+def test_accumulation_refuses_sensor_frame_clouds(launcher, tmp_path):
+    import yaml
+    launch, context = launcher
+    settings = yaml.safe_load(Path(context['config']).read_text())
+    settings['go2_state_adapter']['ros__parameters']['cloud_is_world'] = False
+    config = tmp_path / 'local.yaml'
+    config.write_text(yaml.safe_dump(settings))
+    context['config'] = str(config)
+    with pytest.raises(RuntimeError, match='world-frame'):
+        launch.setup(context)
+
+
+def test_accumulation_requires_heartbeat_timeout_longer_than_publication_period(launcher, tmp_path):
+    import yaml
+    launch, context = launcher
+    settings = yaml.safe_load(Path(context['config']).read_text())
+    settings['go2_map_maintenance']['ros__parameters']['publish_rate_hz'] = 0.1
+    config = tmp_path / 'too-slow.yaml'
+    config.write_text(yaml.safe_dump(settings))
+    context['config'] = str(config)
+    with pytest.raises(RuntimeError, match='heartbeat'):
         launch.setup(context)
